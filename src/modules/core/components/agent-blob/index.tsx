@@ -6,9 +6,11 @@ import { getIdentity } from '../../utils/identity'
 /**
  * The large organic mascot on a marketplace card — the canvas's `blob-a`…`blob-d`.
  *
- * A different treatment of the same identity as EmployeeAvatar, not a bigger version of it:
- * the shelf wants character, a roster row wants a legible dot. Shape and colour both come
- * from the profile-name hash, so a card and its roster row stay recognisably the same agent.
+ * The hero treatment of the same identity `EmployeeAvatar` draws everywhere else: same
+ * `getIdentity(profile)`, same `MASCOT_PATHS` silhouette, same `MASCOT_EYES`. The only
+ * difference is the eye radius, which the small treatment has to fatten to survive a 28px
+ * box. Keep it that way — the two drifting apart is exactly how a hired agent used to lose
+ * its shape on the way to the sidebar, and `employee-avatar.test.tsx` now fails if they do.
  */
 interface AgentBlobProps {
   profile: string

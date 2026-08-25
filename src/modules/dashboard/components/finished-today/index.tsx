@@ -11,9 +11,13 @@ interface FinishedTodayProps {
 /**
  * Today's outcomes, one line each.
  *
- * The canvas's file chip is not built: a session row carries no artifacts —
- * `HermesSessionRow` is a chat row, and Hermes has no per-session file list —
- * so there is nothing to name in a chip. The row is the same shape without it.
+ * §4.3's delivered-file chip is not built, and the claim was re-checked against
+ * the backend rather than inherited: `HermesSessionRow` carries id, title,
+ * preview, stamps, counts, source, model and flags, and nothing else. Hermes's
+ * only file surface is `/api/files*` in `computer_cli/web_server.py`, which
+ * browses, reads and uploads by *path* — there is no route anywhere that asks
+ * "what did this session deliver". A chip would have to invent both the file
+ * and the link behind it, so the row is the same shape without one.
  */
 export const FinishedToday: FC<FinishedTodayProps> = ({ items }) => {
   if (items.length === 0) return null

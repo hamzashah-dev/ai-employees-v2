@@ -17,6 +17,8 @@ export interface DashboardData {
   summary: string
   sections: DashboardSections
   isLoading: boolean
+  /** The roster loaded and is genuinely empty — D5, not a failure. */
+  isEmpty: boolean
   /** Set only when the roster itself could not be loaded. */
   errorMessage?: string
   retry: () => void
@@ -62,6 +64,7 @@ export function useDashboard(): DashboardData {
     summary: summariseDay(sections, period),
     sections,
     isLoading,
+    isEmpty: !isLoading && !errorMessage && sections.team.length === 0,
     errorMessage,
     retry,
   }

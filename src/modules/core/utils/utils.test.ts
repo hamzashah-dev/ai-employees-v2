@@ -9,6 +9,58 @@ describe('identity', () => {
     expect(getIdentity('ad-creator')).toEqual(getIdentity('ad-creator'))
   })
 
+  it('gives one profile one shape everywhere it is asked', () => {
+    // The bug this guards: a marketplace card and a roster row asking for the same
+    // employee and getting two different characters back.
+    const shapes = new Set(Array.from({ length: 5 }, () => getIdentity('inbox-triage').shape))
+    expect(shapes.size).toBe(1)
+  })
+
+  it('reaches all four silhouettes across the catalog', () => {
+    // Every shipped catalog id, so this fails if the hash ever collapses onto a subset
+    // and three quarters of the shelf starts looking identical.
+    const shapes = new Set(
+      [
+        'inbox-triage',
+        'chief-of-staff',
+        'bug-hunter',
+        'on-call-buddy',
+        'talent-scout',
+        'account-manager',
+        'shorts-maker',
+        'script-writer',
+        'field-researcher',
+        'competitor-watch',
+        'cover-artist',
+        'brand-keeper',
+        'home-keeper',
+        'expense-clerk',
+        'invoice-chaser',
+        'training-partner',
+        'meeting-notes',
+        'reply-drafter',
+        'study-coach',
+        'access-auditor',
+        'launch-planner',
+        'seo-editor',
+      ].map((id) => getIdentity(id).shape),
+    )
+    expect(shapes).toEqual(new Set(['blob', 'drop', 'triangle', 'cloud']))
+  })
+
+  it('hashes the name Hermes will store, not the name it was given', () => {
+    // `normalize_profile_name` in computer_cli/profiles.py is `name.strip().lower()`, so a
+    // profile installed as ' Inbox-Triage ' comes back from GET /api/profiles as
+    // 'inbox-triage'. Both must land on the same character.
+    expect(getIdentity(' Inbox-Triage ')).toEqual(getIdentity('inbox-triage'))
+    expect(getIdentity('DEFAULT').shape).toBe(getIdentity('default').shape)
+  })
+
+  it('keys an override by the normalised name too', () => {
+    setIdentityOverride(' Inbox-Triage ', { shape: 'triangle' })
+    expect(getIdentity('inbox-triage').shape).toBe('triangle')
+  })
+
   it('separates different profiles', () => {
     const names = ['ad-creator', 'inbox-manager', 'sales-outbound', 'talent-scout']
     const colors = new Set(names.map((n) => getIdentity(n).color))

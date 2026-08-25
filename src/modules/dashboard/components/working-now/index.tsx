@@ -45,13 +45,21 @@ const WorkingCard: FC<{ item: WorkingItem }> = ({ item }) => {
           fraction of work done — there is no total to divide by — so the bar
           shows that a turn is running without claiming how far along it is. The
           canvas's fixed 22%→60% fill would be a number we invented.
+
+          §4.3's two tokens exactly: a 4px `bg-fill-brand` bar on a
+          `bg-fill-tertiary` track. The pulse rather than a sweeping segment
+          because a travelling bar needs a translate keyframe, and the token
+          layer ships none — `shimmer` and `shine` both move a
+          background-position and `src/styles/globals.css` is not this module's
+          to extend. `animate-pulse` is Tailwind's own and says the same thing:
+          running, length unknown.
         */}
         <div
           role="progressbar"
           aria-label={`${item.displayName} is working`}
-          className="h-1 overflow-hidden rounded-sm bg-fill-elevated-hover"
+          className="h-1 overflow-hidden rounded-sm bg-fill-tertiary"
         >
-          <span className="block size-full animate-pulse bg-[repeating-linear-gradient(115deg,currentColor_0_6px,transparent_6px_14px)] text-fill-brand" />
+          <span className="block size-full animate-pulse bg-fill-brand" />
         </div>
       </div>
     </article>

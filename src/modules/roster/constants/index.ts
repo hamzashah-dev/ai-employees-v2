@@ -10,6 +10,7 @@ import { TimeClockIcon } from '@repo/icons/time-clock-icon'
 import { ToolBoxIcon } from '@repo/icons/tool-box'
 import { ToolsIcon } from '@repo/icons/tools-icon'
 import { WebsiteContentIcon } from '@repo/icons/website-content-icon'
+import { useSearchStore } from '@/modules/core/stores/search-store'
 import type { RosterNavItem } from '../types'
 
 /** How often the last-outcome lines refresh. */
@@ -78,7 +79,14 @@ export const DEFAULT_NAV_ITEMS: RosterNavItem[] = [
   { to: ROUTES.NEW_CHAT, label: 'New Chat', icon: StartNewIcon, end: true },
   { to: ROUTES.SEARCH_CHATS, label: 'Search Chats', icon: SearchIcon, end: true },
   { to: ROUTES.SITES, label: 'Sites', icon: WebsiteContentIcon, badge: 'Beta' },
-  { to: ROUTES.EMPLOYEES, label: 'Employees', icon: PeopleIcon, end: true, badge: 'Beta' },
+  {
+    to: ROUTES.EMPLOYEES,
+    label: 'Employees',
+    icon: PeopleIcon,
+    end: true,
+    badge: 'Beta',
+    live: true,
+  },
   { to: ROUTES.AI_TOOLS, label: 'AI Tools', icon: ToolsIcon, end: true },
   { to: ROUTES.CUSTOMIZE, label: 'Customize', icon: ToolBoxIcon },
   { to: ROUTES.INTEGRATIONS, label: 'Integrations', icon: ConnectorsIcon },
@@ -90,8 +98,17 @@ export const DEFAULT_NAV_ITEMS: RosterNavItem[] = [
 /** Employees-mode nav (D3/D6/D11/D15). */
 export const EMPLOYEES_NAV_ITEMS: RosterNavItem[] = [
   { to: ROUTES.NEW_CHAT, label: 'New Chat', icon: StartNewIcon, end: true },
-  { to: ROUTES.EMPLOYEES, label: 'Employees', icon: PeopleIcon, end: true, badge: 'Beta' },
-  { to: ROUTES.SEARCH, label: 'Search', icon: SearchIcon, end: true },
+  {
+    to: ROUTES.EMPLOYEES,
+    label: 'Employees',
+    icon: PeopleIcon,
+    end: true,
+    badge: 'Beta',
+    live: true,
+  },
+  // §4.2: "a **button**, not a link". The modal opens over whatever is on
+  // screen, so navigating away from it would be the wrong thing to do.
+  { label: 'Search', icon: SearchIcon, onSelect: () => useSearchStore.getState().open() },
   { to: ROUTES.MARKETPLACE, label: 'Marketplace', icon: ShoppingIcon },
 ]
 

@@ -4,6 +4,7 @@ import { MenuIcon } from '@repo/icons/menu'
 import { Button } from '@repo/ui/button'
 import { cn } from '@repo/ui/cn'
 import { AccountAvatar } from '@/modules/core/components/account-avatar'
+import { ThemeToggle } from '@/modules/core/components/theme-toggle'
 
 /**
  * The main column's title bar, above the dashboard and the marketplace.
@@ -45,6 +46,8 @@ export const TopBar: FC<TopBarProps> = ({ title, onOpenSidebar, className }) => 
     <div className="flex-1" />
 
     <div className="flex shrink-0 items-center gap-4">
+      <ThemeToggle />
+
       {/*
         Notifications have no backing endpoint yet. Rendered as a real control rather than
         omitted, because the canvas places it and the bar reads wrong without it — but it is

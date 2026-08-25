@@ -13,11 +13,20 @@ interface NeedsYesProps {
 /**
  * The one section that is a queue rather than a report.
  *
- * The canvas's primary action is the agent's own wording ("File as Meals"), which
- * no payload carries — `approval.request` gives a summary and an optional detail
- * line, and Hermes has no approval RPC to answer with. So the primary action is
- * the real one available: open the thread, where the approval card lives. "Decide
- * later" clears it here only, exactly as that card's own "Not now" does.
+ * **"Hermes has no approval RPC" was wrong and is corrected here.** It does:
+ * `approval.respond` in `tui_gateway/server.py` takes `{session_id, choice,
+ * all}` and forwards to `tools.approval.resolve_gateway_approval`, and the
+ * `approval.request` event already ships the `choices` to offer (`once` /
+ * `session` / `always` / `deny`, narrowed by the payload's own flags).
+ *
+ * What is missing is the client half, and all of it lives in `modules/core`,
+ * which this module may not edit: `ApprovalRequest` carries no `choices`, the
+ * chat store has only `clearApproval`, and `SessionManager` exposes no way to
+ * reach the socket for an arbitrary method. Until those land, a real `Approve`
+ * button here would answer nothing while looking like it had — the exact
+ * failure CLAUDE.md names — so the primary action stays the honest one: open
+ * the thread, where the approval lives. "Decide later" clears the card here
+ * only, exactly as the thread's own "Not now" does.
  */
 export const NeedsYes: FC<NeedsYesProps> = ({ items }) => {
   if (items.length === 0) return null

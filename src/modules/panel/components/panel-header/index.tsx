@@ -1,6 +1,8 @@
 import type { ComponentType, FC } from 'react'
 import { ChevronLeftIcon } from '@repo/icons/chevron-left'
 import { CrossIcon } from '@repo/icons/cross'
+import { ExitFullViewIcon } from '@repo/icons/exit-full-view'
+import { FullViewIcon } from '@repo/icons/full-view'
 import { MeetingShareIcon } from '@repo/icons/meeting-share-icon'
 import { SettingsIcon } from '@repo/icons/settings'
 import { Button } from '@repo/ui/button'
@@ -14,25 +16,42 @@ import { WithTooltip } from '@repo/ui/tooltip'
 const HEADER_BUTTON = 'text-secondary [&>svg]:size-4'
 
 interface PanelHeaderProps {
+  /** Pops the view stack. At the root that leaves the drawer; see `usePanelView`. */
+  onBack: () => void
+  /** Names the destination, which changes with the depth. */
+  backLabel: string
   onClose: () => void
+  /**
+   * Omitted where maximizing is meaningless — below `laptop` the drawer is
+   * already a full-height sheet, so there is nothing to maximize into.
+   */
+  onToggleMaximize?: () => void
+  isMaximized?: boolean
 }
 
 /**
- * Back on the left; share, settings and close on the right.
+ * Back on the left; share, settings, maximize and close on the right.
  *
- * Back and close both collapse the drawer: the panel has no nested views to go
- * back to, and a chevron that does nothing is worse than one that does the
- * obvious thing.
+ * Maximize mirrors the shipped artifact drawer's own state rather than being a
+ * new full-screen mode: there, `isMaximized` swaps the drawer's width for 100%
+ * and drops its resize handle, and the chat column flexes away beside it. Same
+ * mechanism here.
  */
-export const PanelHeader: FC<PanelHeaderProps> = ({ onClose }) => (
+export const PanelHeader: FC<PanelHeaderProps> = ({
+  onBack,
+  backLabel,
+  onClose,
+  onToggleMaximize,
+  isMaximized = false,
+}) => (
   <header className="flex h-12 shrink-0 items-center justify-between px-3">
     <Button
       variant="icon-ghost"
       size="icon-sm"
       shape="pill"
       className={HEADER_BUTTON}
-      aria-label="Back to the conversation"
-      onClick={onClose}
+      aria-label={backLabel}
+      onClick={onBack}
     >
       <ChevronLeftIcon />
     </Button>
@@ -48,6 +67,18 @@ export const PanelHeader: FC<PanelHeaderProps> = ({ onClose }) => (
         label="Employee settings"
         tooltip="Employee settings aren’t available yet"
       />
+      {onToggleMaximize && (
+        <Button
+          variant="icon-ghost"
+          size="icon-sm"
+          shape="pill"
+          className={HEADER_BUTTON}
+          aria-label={isMaximized ? 'Restore split view' : 'Maximize panel'}
+          onClick={onToggleMaximize}
+        >
+          {isMaximized ? <ExitFullViewIcon /> : <FullViewIcon />}
+        </Button>
+      )}
       <Button
         variant="icon-ghost"
         size="icon-sm"

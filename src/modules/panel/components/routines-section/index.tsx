@@ -1,12 +1,16 @@
 import { useId, type FC } from 'react'
+import { PlusIcon } from '@repo/icons/plus'
 import { Button } from '@repo/ui/button'
 import { Spinner } from '@/modules/core/components/spinner'
+import type { HermesCronJob } from '@/modules/core/services/hermes/types'
 import { useRoutines } from '../../hooks/use-routines'
 import { RoutineRow } from '../routine-row'
 import { RoutineSkeleton } from '../routine-skeleton'
 
 interface RoutinesSectionProps {
   profile: string
+  /** With a job, edits it; without, starts a new one. Pushes the editor view. */
+  onEdit: (job?: HermesCronJob) => void
 }
 
 /**
@@ -15,15 +19,27 @@ interface RoutinesSectionProps {
  * The 8px gap is the panel body's own rhythm, repeated inside so the heading
  * and every row sit on it — the canvas has no dividers or padding here.
  */
-export const RoutinesSection: FC<RoutinesSectionProps> = ({ profile }) => {
+export const RoutinesSection: FC<RoutinesSectionProps> = ({ profile, onEdit }) => {
   const headingId = useId()
   const { data, isPending, isError, error, refetch, isFetching } = useRoutines(profile)
 
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-2">
-      <h2 id={headingId} className="text-label-md font-medium text-primary">
-        Routines
-      </h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 id={headingId} className="text-label-md font-medium text-primary">
+          Routines
+        </h2>
+        <Button
+          variant="icon-ghost"
+          size="icon-xs"
+          shape="pill"
+          aria-label="New routine"
+          className="text-secondary [&>svg]:size-4"
+          onClick={() => onEdit()}
+        >
+          <PlusIcon />
+        </Button>
+      </div>
 
       {isPending && (
         <ul className="flex flex-col gap-2">
@@ -57,11 +73,23 @@ export const RoutinesSection: FC<RoutinesSectionProps> = ({ profile }) => {
             <p className="pt-1 text-label-sm text-tertiary">
               Routines are scheduled jobs this employee runs on its own.
             </p>
+            {/* Deliberately not "New routine" again: the header already has a
+                control by that name, and two buttons with one accessible name
+                in the same view is ambiguous to anyone not looking at it. */}
+            <Button variant="outline" size="sm" className="mt-3" onClick={() => onEdit()}>
+              <PlusIcon />
+              Add the first one
+            </Button>
           </div>
         ) : (
           <ul className="flex flex-col gap-2">
             {data.map((job) => (
-              <RoutineRow key={job.id} job={job} profile={profile} />
+              <RoutineRow
+                key={job.id}
+                job={job}
+                profile={profile}
+                onEdit={() => onEdit(job)}
+              />
             ))}
           </ul>
         ))}

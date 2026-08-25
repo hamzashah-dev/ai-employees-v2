@@ -390,19 +390,66 @@ export interface HermesProfileSessionsResponse {
   errors?: unknown
 }
 
+/**
+ * One scheduled job, as `cron/jobs.py` writes it and `_annotate_cron_job` hands
+ * it back.
+ *
+ * The field names here are the record's own, taken from `create_job`: it is
+ * `next_run_at` / `last_run_at`, not `next_run` / `last_run`, and `schedule` is
+ * the parsed object (`{kind, expr|minutes|run_at, display}`) rather than the
+ * string that was posted. `paused` is not a stored field at all — pause is
+ * `enabled: false` plus a derived `state: "paused"` — but it is kept optional
+ * here because `isRoutinePaused` treats either as authoritative and older
+ * hand-edited records carry only one.
+ */
 export interface HermesCronJob {
   id: string
   name?: string
-  schedule?: string
+  schedule?: unknown
+  /** Hermes's own English for the schedule; `?` when the record has none. */
+  schedule_display?: string
   enabled?: boolean
   paused?: boolean
-  next_run?: string | null
-  last_run?: string | null
+  /** `scheduled` | `paused` | `running` | `done`, normalised on read. */
+  state?: string
+  next_run_at?: string | null
+  last_run_at?: string | null
+  /** `success` | `error` on the last completed run; absent before the first. */
+  last_status?: string | null
+  last_error?: string | null
+  created_at?: string | null
   prompt?: string
+  deliver?: string
+  /** Injected by the dashboard route, so an `all` listing knows whose job it is. */
+  profile?: string | null
+  profile_name?: string | null
 }
 
 export interface HermesCronJobsResponse {
   jobs?: HermesCronJob[]
+}
+
+/**
+ * One hit from `/api/sessions/search`.
+ *
+ * `snippet` is FTS5 output and carries no markup — the endpoint asks SQLite for
+ * a plain excerpt — so the query has to be re-located client-side to highlight
+ * it. `session_id` is the *tip* of a compression lineage rather than the row
+ * that matched, which is what makes a hit navigable: the matching segment may
+ * have been rotated away by auto-compression.
+ */
+export interface HermesSearchHit {
+  session_id?: string
+  lineage_root?: string
+  snippet?: string
+  role?: string | null
+  source?: string | null
+  model?: string | null
+  session_started?: string | number | null
+}
+
+export interface HermesSearchResponse {
+  results?: HermesSearchHit[]
 }
 
 export interface HermesStatus {

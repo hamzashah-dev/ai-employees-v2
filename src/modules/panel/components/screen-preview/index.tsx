@@ -1,4 +1,5 @@
 import type { FC } from 'react'
+import type { PropsWithClassName } from '@repo/types/common'
 import { CursorIcon } from '@repo/icons/cursor-icon'
 import { cn } from '@repo/ui/cn'
 
@@ -33,10 +34,14 @@ const MAIN_BARS = [
   ['w-[75%]', 'bg-fill-elevated-hover'],
 ] as const
 
-export const ScreenPreview: FC = () => (
+/** `className` carries the maximized height; the drawing itself does not change. */
+export const ScreenPreview: FC<PropsWithClassName> = ({ className }) => (
   <div
     aria-hidden
-    className="relative h-[280px] w-full shrink-0 overflow-hidden rounded-2xl border border-primary bg-fill"
+    className={cn(
+      'relative h-[280px] w-full shrink-0 overflow-hidden rounded-2xl border border-primary bg-fill',
+      className,
+    )}
   >
     <div className="flex h-6 items-center gap-1 bg-fill-elevated px-2.5">
       <span className="size-[5px] rounded-full bg-fill-elevated-active" />

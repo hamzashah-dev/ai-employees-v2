@@ -1,5 +1,6 @@
 import type { ComponentType, FC } from 'react'
 import { PauseIcon } from '@repo/icons/pause'
+import { PencilIcon } from '@repo/icons/pencil'
 import { PlayIcon } from '@repo/icons/play'
 import { PlayCircleIcon } from '@repo/icons/play-circle'
 import { TimeClockIcon } from '@repo/icons/time-clock-icon'
@@ -8,16 +9,18 @@ import { cn } from '@repo/ui/cn'
 import { Spinner } from '@/modules/core/components/spinner'
 import type { HermesCronJob } from '@/modules/core/services/hermes/types'
 import { useRoutineActions } from '../../hooks/use-routine-actions'
-import { formatSchedule } from '../../utils/format-schedule'
+import { formatSchedule } from '@/modules/core/utils/format-schedule'
 import { isRoutinePaused, routineLabel } from '../../utils/routine-state'
 
 interface RoutineRowProps {
   job: HermesCronJob
   profile: string
+  /** Opens the editor on this routine. */
+  onEdit: () => void
 }
 
-/** One scheduled job, with the two things you ever want to do to it. */
-export const RoutineRow: FC<RoutineRowProps> = ({ job, profile }) => {
+/** One scheduled job, with the three things you ever want to do to it. */
+export const RoutineRow: FC<RoutineRowProps> = ({ job, profile, onEdit }) => {
   const { pause, resume, trigger, error } = useRoutineActions(job.id, profile)
   const paused = isRoutinePaused(job)
   const label = routineLabel(job)
@@ -67,6 +70,15 @@ export const RoutineRow: FC<RoutineRowProps> = ({ job, profile }) => {
           label={`Run ${label} now`}
           pending={trigger.isPending}
           onClick={() => trigger.mutate()}
+        />
+        {/* An action rather than a click target on the row itself: the row
+            already holds buttons, and a button inside a button is not markup a
+            browser will render. */}
+        <RowAction
+          icon={PencilIcon}
+          label={`Edit ${label}`}
+          pending={false}
+          onClick={onEdit}
         />
       </div>
     </li>

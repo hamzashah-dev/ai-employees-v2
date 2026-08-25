@@ -19,10 +19,12 @@ export const IDENTITY_COLORS = [
 ] as const
 
 /**
- * The canvas draws two avatar treatments from the same identity: a plain circle wherever an
- * employee appears in a list, thread or card, and a large organic blob on marketplace cards.
- * The four blob silhouettes are design-original assets; the names map to the canvas's
+ * The four mascot silhouettes — design-original assets whose names map to the canvas's
  * `blob-a`…`blob-d` symbols.
+ *
+ * The canvas draws these only on marketplace cards and a plain circle everywhere else. We
+ * draw them at both scales instead: an employee that is a drop on the shelf has to still be
+ * a drop in the sidebar's Team section, or the character does not survive being hired.
  */
 export type MascotShape = 'blob' | 'drop' | 'triangle' | 'cloud'
 

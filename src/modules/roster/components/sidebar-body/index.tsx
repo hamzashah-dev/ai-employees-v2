@@ -27,7 +27,7 @@ export const SidebarBody: FC = () => {
       <nav aria-label="Main">
         <ul className="flex shrink-0 flex-col gap-1 p-2">
           {DEFAULT_NAV_ITEMS.map((item) => (
-            <NavRow key={item.to} item={item} />
+            <NavRow key={item.label} item={item} />
           ))}
         </ul>
       </nav>

@@ -8,9 +8,24 @@ import '@testing-library/jest-dom/vitest'
  */
 window.innerWidth = 1440
 
+declare global {
+  interface Window {
+    /**
+     * `(prefers-color-scheme: dark)` has no `innerWidth` equivalent to resolve against, so
+     * the same polyfill answers it from this flag. A theme test flips it; left alone it
+     * keeps `system` resolving to light, which is what the token layer defaults to.
+     */
+    __prefersDarkScheme?: boolean
+  }
+}
+
+window.__prefersDarkScheme = false
+
 window.matchMedia = (query: string): MediaQueryList => {
   const min = /\(min-width:\s*(\d+)px\)/.exec(query)
-  const matches = min ? window.innerWidth >= Number(min[1]) : false
+  const matches = min
+    ? window.innerWidth >= Number(min[1])
+    : query.includes('prefers-color-scheme: dark') && window.__prefersDarkScheme === true
 
   return {
     matches,

@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { TooltipProvider } from '@radix-ui/react-tooltip'
 import { MemoryRouter } from 'react-router-dom'
 import { SidebarBody } from './components/sidebar-body'
 import { useSyncSidebarEmployeesMode } from './hooks/use-sync-sidebar-employees-mode'
@@ -18,13 +19,21 @@ const Harness = () => {
   return <SidebarBody />
 }
 
-/** The roster's own queries are irrelevant here; they stay pending. */
+/**
+ * The roster's own queries are irrelevant here; they stay pending.
+ *
+ * `TooltipProvider` is not optional: every nav row carries the collapsed rail's
+ * tooltip, and Radix throws outright without a provider above it. The app gets
+ * one from `Providers`.
+ */
 const renderAt = (path: string) =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter initialEntries={[path]}>
-        <Harness />
-      </MemoryRouter>
+      <TooltipProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <Harness />
+        </MemoryRouter>
+      </TooltipProvider>
     </QueryClientProvider>,
   )
 

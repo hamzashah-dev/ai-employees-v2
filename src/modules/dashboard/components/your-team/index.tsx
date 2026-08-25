@@ -10,14 +10,22 @@ interface YourTeamProps {
 }
 
 /**
- * Ready / Working / Needs you — the canvas's three pills.
+ * §4.3's pills, on its own surface pairs: `Ready` success, `Working` brand,
+ * `Needs you` warning.
  *
- * `error` folds into "Needs you": it is a fourth state the socket can produce
- * and it wants the same thing from the reader, and the canvas's vocabulary has
- * no fourth pill.
+ * Its fourth, `Held` on the neutral pair, is **not** rendered, because nothing
+ * in Hermes is held. A profile carries `gateway_running` (whether its messaging
+ * gateway is up, not whether the agent is paused) and nothing else status-like;
+ * `paused` exists only on a cron job, which is a routine rather than an
+ * employee. A neutral "Held" pill would be a state the reader could never get
+ * out of, because nothing can put anyone into it.
+ *
+ * `error` folds into "Needs you" instead: it is the fourth state the socket
+ * really does produce, and a turn that died wants the reader exactly as much as
+ * one that stopped to ask.
  */
 const PILL: Record<EmployeeStatus, { label: string; variant: BadgeProps['variant'] }> = {
-  ready: { label: 'Ready', variant: 'neutral-subtle' },
+  ready: { label: 'Ready', variant: 'success' },
   working: { label: 'Working', variant: 'brand-on-surface' },
   'needs-you': { label: 'Needs you', variant: 'warning' },
   error: { label: 'Needs you', variant: 'warning' },
@@ -47,7 +55,7 @@ export const YourTeam: FC<YourTeamProps> = ({ items }) => {
               <EmployeeAvatar profile={item.profile} className="size-10" />
 
               <div className="flex min-w-0 flex-1 flex-col">
-                <p className="truncate text-label-md font-medium text-primary">
+                <p className="truncate text-label-lg font-medium text-primary">
                   {item.displayName}
                 </p>
                 {item.role && (

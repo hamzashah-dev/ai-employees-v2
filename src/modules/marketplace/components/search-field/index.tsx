@@ -7,26 +7,28 @@ interface SearchFieldProps {
 }
 
 /**
- * The hero search bar. 640px on the canvas's 1200px column; it gives way rather
- * than overflowing on anything narrower, which the single artboard says nothing
- * about.
+ * The search box, as the user's reference draws it: a small pill on the control
+ * row rather than the 640px hero bar this page used to open with. It shrinks
+ * with the row on a narrow viewport instead of overflowing.
  *
- * The focus ring is drawn on the pill rather than the bare input so it traces the
- * shape you see. The canvas specifies no focus state at all — that is a gap in a
- * design that draws every control as a div, not a decision to copy.
+ * The focus ring is drawn on the pill rather than the bare input so it traces
+ * the shape you see. The visible placeholder is the reference's terse `Search`;
+ * the accessible name stays the fuller "Search agents", because a screen-reader
+ * user hearing "Search" on a page with a sidebar search has no idea which one
+ * they are in.
  */
 export const SearchField: FC<SearchFieldProps> = ({ value, onChange }) => (
-  <label className="flex h-12 w-full max-w-[640px] items-center gap-2.5 rounded-3xl bg-fill px-5 shadow-xs focus-within:ring-2 focus-within:ring-brand">
+  <label className="flex h-8 w-[168px] items-center gap-2 rounded-full bg-fill px-3 focus-within:ring-2 focus-within:ring-brand tablet:w-[200px]">
     <span className="sr-only">Search agents</span>
-    <SearchIcon className="size-5 shrink-0 text-tertiary" />
+    <SearchIcon className="size-4 shrink-0 text-tertiary" />
     <input
       type="text"
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      placeholder="Search agents"
+      placeholder="Search"
       autoComplete="off"
       spellCheck={false}
-      className="min-w-0 flex-1 bg-transparent text-body-md text-primary outline-none placeholder:text-tertiary"
+      className="min-w-0 flex-1 bg-transparent text-label-md text-primary outline-none placeholder:text-tertiary"
     />
   </label>
 )

@@ -88,6 +88,33 @@ describe('DashboardView', () => {
     expect(screen.queryByText('Finished today')).not.toBeInTheDocument()
   })
 
+  it('answers an empty roster with D5 rather than a bare greeting', async () => {
+    vi.stubGlobal('fetch', stubFetch([]))
+    await mount()
+
+    expect(
+      await screen.findByRole('heading', { name: 'Your team is empty' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Browse the Marketplace' })).toHaveAttribute(
+      'href',
+      '/marketplace',
+    )
+
+    // Three real §6 agents, each landing on its own detail page.
+    expect(screen.getByRole('link', { name: 'Hire Inbox Triage' })).toHaveAttribute(
+      'href',
+      '/marketplace/inbox-triage',
+    )
+    expect(screen.getByRole('link', { name: 'Hire Expense Manager' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Hire Sales Outbound' })).toBeInTheDocument()
+
+    // The counting line would only say the same thing again.
+    expect(
+      screen.queryByText('No employees yet — hire your first from the Marketplace.'),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Your team' })).not.toBeInTheDocument()
+  })
+
   it('shows a live turn and an approval from the socket state', async () => {
     vi.stubGlobal('fetch', stubFetch([profile('inbox-manager'), profile('expense-manager')]))
     useChatStore.setState({

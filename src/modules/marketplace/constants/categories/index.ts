@@ -46,18 +46,24 @@ export const CATEGORIES = ['All', ...AGENT_CATEGORIES] as const
 
 export type MarketplaceCategory = (typeof CATEGORIES)[number]
 
-/** One line under each section heading, in the canvas's register — no full stop. */
+/**
+ * One line under each section heading, in the canvas's register — no full stop.
+ *
+ * Six of these are pinned verbatim by §6 of the design spec — Personal,
+ * Engineering, Business Ops, Money, Comms and Health & Wellbeing — and are not
+ * ours to reword. The other seven are this app's own.
+ */
 export const CATEGORY_SUBTITLES: Record<AgentCategory, string> = {
   Personal: 'Your own day, handled',
-  Engineering: 'They take the small work so you keep the hard part',
+  Engineering: 'The work around the code',
   'Business Ops': 'Keep the business running',
   Content: 'Scripts, cuts and posts on cadence',
   Research: 'They read everything and hand back what matters',
   Creative: 'A rough idea, made into something you can ship',
   'Home & Devices': 'They run the house while you are not thinking about it',
-  Money: 'Receipts, invoices, and the month-end close',
-  'Health & Wellbeing': 'Training that fits the week you actually have',
-  Comms: 'Calls, replies, and the notes afterwards',
+  Money: 'Watch what leaves the account',
+  'Health & Wellbeing': "The body you're stuck with",
+  Comms: 'Who reaches you, and how',
   Learning: 'They turn reading into something that stays',
   'Security & Privacy': 'They watch the doors and tell you what to close',
   'Growth & Marketing': 'Launches, pages, and the posts around them',

@@ -1,40 +1,33 @@
 import type { FC } from 'react'
-import { Button } from '@repo/ui/button'
-import { cn } from '@repo/ui/cn'
 import type { CatalogAgent } from '../../constants/catalog'
 import {
   CATEGORY_STYLES,
   CATEGORY_SUBTITLES,
   type AgentCategory,
 } from '../../constants/categories'
-import { AgentCard } from '../agent-card'
-import { useShelf } from './hooks/use-shelf'
+import { AgentGrid } from '../agent-grid'
 
 interface CatalogSectionProps {
   category: AgentCategory
   agents: readonly CatalogAgent[]
   /** Lowercased profile names already on the roster. */
   installed: ReadonlySet<string>
-  /** The first shelf sits a little further from the filter row than the rest. */
-  first?: boolean
 }
 
 /**
- * One category's shelf: header, a four-column grid, and the tile that reveals the
- * rest. "Show more <n>" counts the agents actually withheld, so a shelf with
- * nothing more to give does not offer.
+ * One category's shelf: header, then a grid of whole rows with the pill that
+ * reveals the rest. "Show more <n>" counts the agents actually withheld, so a
+ * shelf with nothing more to give does not offer.
+ *
+ * Only the Discover tab, unnarrowed, draws shelves. Once a category or a maker
+ * tab is active the page renders a flat {@link AgentGrid} instead: the header
+ * would be the same two strings the control row already prints.
  */
-export const CatalogSection: FC<CatalogSectionProps> = ({
-  category,
-  agents,
-  installed,
-  first,
-}) => {
-  const { visible, hidden, showAll } = useShelf(agents.length)
+export const CatalogSection: FC<CatalogSectionProps> = ({ category, agents, installed }) => {
   const { Icon, color } = CATEGORY_STYLES[category]
 
   return (
-    <section aria-label={category} className={cn('flex flex-col gap-4 pt-2', { 'pt-4': first })}>
+    <section aria-label={category} className="flex flex-col gap-4">
       <div className="flex items-baseline gap-2.5">
         <span
           className="flex size-6 shrink-0 items-center justify-center self-center rounded-lg"
@@ -46,40 +39,7 @@ export const CatalogSection: FC<CatalogSectionProps> = ({
         <p className="text-label-sm text-tertiary">{CATEGORY_SUBTITLES[category]}</p>
       </div>
 
-      {/*
-        Four across is the canvas's shelf, and it holds from `desktop-sm` — where the
-        sidebar is a panel again — down through the same 1/2/3 ladder the dashboard's
-        team grid already uses. Kept a fixed four, the cards reach 68px on a phone and
-        the blob bursts out of the tile.
-      */}
-      <div className="grid grid-cols-1 gap-4 pt-6 tablet:grid-cols-2 laptop:grid-cols-3 desktop-sm:grid-cols-4">
-        {agents.slice(0, visible).map((agent) => (
-          <AgentCard
-            key={agent.id}
-            agent={agent}
-            installed={installed.has(agent.id.toLowerCase())}
-          />
-        ))}
-
-        {/*
-          The canvas parks the reveal under the shelf's right half. That is a
-          four-column address, so it is spelled out only where there are four columns —
-          below `desktop-sm` it would conjure columns the grid does not have and push
-          the row past the viewport.
-        */}
-        {hidden > 0 ? (
-          <div className="col-span-full flex items-center justify-center desktop-sm:col-start-3 desktop-sm:col-end-5">
-            <Button
-              variant="secondary"
-              size="none"
-              className="h-9 rounded-[18px] px-5 text-label-md"
-              onClick={showAll}
-            >
-              Show more {hidden}
-            </Button>
-          </div>
-        ) : null}
-      </div>
+      <AgentGrid agents={agents} installed={installed} />
     </section>
   )
 }

@@ -2,6 +2,7 @@ import type { FC } from 'react'
 import { Button } from '@repo/ui/button'
 import { Skeleton } from '@repo/ui/skeleton'
 import { ACCOUNT_NAME } from '@/modules/core/constants/account'
+import { EmptyRoster } from './components/empty-roster'
 import { FinishedToday } from './components/finished-today'
 import { NeedsYes } from './components/needs-yes'
 import { WorkingNow } from './components/working-now'
@@ -20,7 +21,8 @@ import { useDashboard } from './hooks/use-dashboard'
  * is one placeholder for the whole app rather than a second one here.
  */
 export const DashboardView: FC = () => {
-  const { greeting, summary, sections, isLoading, errorMessage, retry } = useDashboard()
+  const { greeting, summary, sections, isLoading, isEmpty, errorMessage, retry } =
+    useDashboard()
 
   return (
     // The canvas clips (`overflow:hidden`) because its artboard is 1600×1040 and
@@ -32,11 +34,13 @@ export const DashboardView: FC = () => {
           <h1 className="text-heading-lg font-medium text-primary">
             {greeting}, {ACCOUNT_NAME}
           </h1>
-          {isLoading ? (
-            <Skeleton className="mt-1 h-4 w-[280px] bg-fill-elevated" />
-          ) : (
-            <p className="text-body-md text-secondary">{summary}</p>
-          )}
+          {isLoading && <Skeleton className="mt-1 h-4 w-[280px] bg-fill-elevated" />}
+          {/*
+            The empty state says what an employee is and where to get one, at
+            length. `summariseDay`'s own empty-team sentence would say it again
+            three lines above, so the counting line stands down for D5.
+          */}
+          {!isLoading && !isEmpty && <p className="text-body-md text-secondary">{summary}</p>}
         </header>
 
         {errorMessage && (
@@ -48,9 +52,9 @@ export const DashboardView: FC = () => {
           </div>
         )}
 
-        {isLoading ? (
-          <TeamSkeleton />
-        ) : (
+        {isLoading && <TeamSkeleton />}
+        {isEmpty && <EmptyRoster />}
+        {!isLoading && !isEmpty && (
           <>
             <NeedsYes items={sections.needsYes} />
             <WorkingNow items={sections.working} />
