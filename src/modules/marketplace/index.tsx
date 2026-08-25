@@ -35,7 +35,11 @@ export const MarketplaceView: FC = () => {
           <SearchField value={query} onChange={setQuery} />
         </header>
 
-        <div className="flex items-start justify-between gap-4">
+        {/*
+          The link is `shrink-0`, so without the wrap the chips are squeezed into a
+          single-file column on a phone and the link still hangs past the edge.
+        */}
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <CategoryChips value={category} onChange={setCategory} />
           {/*
             Skills an agent can *use* live in /ai-market — a different surface of the

@@ -46,7 +46,13 @@ export const CatalogSection: FC<CatalogSectionProps> = ({
         <p className="text-label-sm text-tertiary">{CATEGORY_SUBTITLES[category]}</p>
       </div>
 
-      <div className="grid grid-cols-4 gap-4 pt-6">
+      {/*
+        Four across is the canvas's shelf, and it holds from `desktop-sm` — where the
+        sidebar is a panel again — down through the same 1/2/3 ladder the dashboard's
+        team grid already uses. Kept a fixed four, the cards reach 68px on a phone and
+        the blob bursts out of the tile.
+      */}
+      <div className="grid grid-cols-1 gap-4 pt-6 tablet:grid-cols-2 laptop:grid-cols-3 desktop-sm:grid-cols-4">
         {agents.slice(0, visible).map((agent) => (
           <AgentCard
             key={agent.id}
@@ -55,8 +61,14 @@ export const CatalogSection: FC<CatalogSectionProps> = ({
           />
         ))}
 
+        {/*
+          The canvas parks the reveal under the shelf's right half. That is a
+          four-column address, so it is spelled out only where there are four columns —
+          below `desktop-sm` it would conjure columns the grid does not have and push
+          the row past the viewport.
+        */}
         {hidden > 0 ? (
-          <div className="col-start-3 col-end-5 flex items-center justify-center">
+          <div className="col-span-full flex items-center justify-center desktop-sm:col-start-3 desktop-sm:col-end-5">
             <Button
               variant="secondary"
               size="none"

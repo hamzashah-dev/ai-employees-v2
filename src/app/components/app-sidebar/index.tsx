@@ -41,6 +41,17 @@ export const AppSidebar: FC<AppSidebarProps> = ({ open, onOpenChange }) => {
       <SheetContent
         side="left"
         onOpenAutoFocus={(event) => event.preventDefault()}
+        // Radix warns unless a dialog either has a description or says it has none.
+        aria-describedby={undefined}
+        // The effect above covers a real navigation. Picking the row for the route you
+        // are already on changes no pathname, so the drawer would sit there covering
+        // the page it was just asked to show — and every row is a link, so one handler
+        // here beats threading a callback down through the roster.
+        onClick={(event) => {
+          if (event.target instanceof HTMLElement && event.target.closest('a')) {
+            onOpenChange(false)
+          }
+        }}
         className="w-64 border-r-primary bg-primary p-0 desktop-sm:hidden [&>button]:hidden"
       >
         <VisuallyHidden>
