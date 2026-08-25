@@ -29,7 +29,10 @@
     "paths": {
       "@/*": ["./src/*"],
       "@repo/icons/*": ["./src/icons/*"],
-      "@repo/types/*": ["./src/repo-types/*"]
+      "@repo/types/*": ["./src/repo-types/*"],
+      "@repo/ui/cn": ["./src/repo-ui/cn"],
+      "@repo/ui/*": ["./src/repo-ui/components/base/*"],
+      "@repo/utils/*": ["./src/repo-utils/*"]
     }
   },
   "include": ["src", "vite.config.ts", "eslint.config.js"]

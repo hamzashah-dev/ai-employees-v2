@@ -112,11 +112,33 @@ export default defineConfig({
      * exactly as it does in imagine-computer-web (`@repo/icons/search`). On the way back
      * into the monorepo the real workspace packages take over and no import line changes.
      */
-    alias: {
-      '@': path.resolve(import.meta.dirname, './src'),
-      '@repo/icons': path.resolve(import.meta.dirname, './src/icons'),
-      '@repo/types': path.resolve(import.meta.dirname, './src/repo-types'),
-    },
+    // Array form: entries are matched in order, so `@repo/ui/cn` must precede `@repo/ui`.
+    alias: [
+      { find: '@', replacement: path.resolve(import.meta.dirname, './src') },
+      {
+        find: '@repo/icons',
+        replacement: path.resolve(import.meta.dirname, './src/icons'),
+      },
+      {
+        find: '@repo/types',
+        replacement: path.resolve(import.meta.dirname, './src/repo-types'),
+      },
+      {
+        find: '@repo/ui/cn',
+        replacement: path.resolve(import.meta.dirname, './src/repo-ui/cn'),
+      },
+      {
+        find: '@repo/ui',
+        replacement: path.resolve(
+          import.meta.dirname,
+          './src/repo-ui/components/base',
+        ),
+      },
+      {
+        find: '@repo/utils',
+        replacement: path.resolve(import.meta.dirname, './src/repo-utils'),
+      },
+    ],
   },
   server: {
     port: 5190,

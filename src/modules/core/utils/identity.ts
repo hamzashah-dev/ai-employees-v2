@@ -12,20 +12,13 @@
  * in localStorage; it is a per-device preference, not synced state.
  */
 
-const IDENTITY_COLORS = [
-  'var(--color-identity-1)',
-  'var(--color-identity-2)',
-  'var(--color-identity-3)',
-  'var(--color-identity-4)',
-  'var(--color-identity-5)',
-  'var(--color-identity-6)',
-  'var(--color-identity-7)',
-  'var(--color-identity-8)',
-] as const
+import {
+  IDENTITY_COLORS,
+  MASCOT_SHAPES,
+  type MascotShape,
+} from '../constants/identity'
 
-export type MascotShape = 'blob' | 'drop' | 'triangle' | 'cloud'
-
-const MASCOT_SHAPES: readonly MascotShape[] = ['blob', 'drop', 'triangle', 'cloud']
+export type { MascotShape }
 
 const OVERRIDE_KEY = 'employees:identity-overrides'
 
@@ -66,7 +59,7 @@ export function setIdentityOverride(profile: string, override: IdentityOverride)
 }
 
 export interface EmployeeIdentity {
-  /** A `var(--color-identity-N)` reference, for use in inline style. */
+  /** A resolved `rgb(...)` string, for use in inline style or an SVG `fill`. */
   color: string
   shape: MascotShape
   /** Uppercase initials, used where a mascot is too small to read. */
