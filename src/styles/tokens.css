@@ -15,10 +15,21 @@
  *   #BDBDBD neutral-50  = text-secondary    rgba(255,255,255,.5) = text-tertiary
  *   label-md 14/20 @3% == the canvas's .42px tracking; shadow-xs == its 0 2px 4px/.16
  *
- * Dropped from the source: monorepo `@source` globs, `tailwind-scrollbar` (the one
- * utility used is defined locally below), the app-specific stylesheet imports
- * (markdown/docs/sandpack/…), lenis + one-tap base fixes, and the decorative
- * gradient/shimmer utilities. Nothing in the token system itself was altered.
+ * Dropped from the source: monorepo `@source` globs, `tailwind-scrollbar` (the one utility
+ * used is defined locally below), the app-specific stylesheet imports
+ * (markdown/docs/sandpack/…), and the lenis + one-tap base fixes. Nothing in the token system
+ * itself was altered.
+ *
+ * Of the source's six `@utility` blocks only two are used here, and both are present:
+ * `scrollbar-minimal` below, and `animate-shimmer` in `globals.css`. The other four
+ * (`animated-brand-border`, `moving-gradient-btn`, `animate-pulse-docs`,
+ * `autofill-content-primary`) are decorative or app-specific and have no consumer.
+ *
+ * `animate-shimmer` is a cautionary case worth knowing about when refreshing this file: its
+ * `--animate-shimmer` var and `shimmer` keyframes live inside the ranges copied here, but the
+ * `@utility` block that supplies its `background-image` sits outside them. Take one without
+ * the other and every `animate-shimmer bg-clip-text text-transparent` label clips against
+ * nothing and renders invisible.
  */
 
 

@@ -77,3 +77,26 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/*
+ * `animate-shimmer` — the sweeping-highlight text treatment the house UI uses for a
+ * "still working" label (`animate-shimmer bg-clip-text text-transparent`).
+ *
+ * The token layer already carries the `shimmer` keyframes and an `--animate-shimmer`
+ * theme entry, but the port dropped this utility along with the rest of the decorative
+ * ones — and it is the half that supplies the gradient. Without it `bg-clip-text
+ * text-transparent` clips against no background at all and the label renders invisible.
+ * Copied from `packages/ui/src/styles/globals.css`; it deliberately re-declares
+ * `animation`, overriding the theme entry's 4s with upstream's 5s.
+ */
+@utility animate-shimmer {
+  background-size: 200% 100%;
+  animation: shimmer 5s infinite linear;
+  background-position: 0 0;
+  background-image: linear-gradient(
+    to right,
+    rgb(var(--content-tertiary)) 45%,
+    rgb(var(--content-primary)) 50%,
+    rgb(var(--content-tertiary)) 55%
+  );
+}
