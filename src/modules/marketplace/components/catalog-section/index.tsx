@@ -1,17 +1,73 @@
-import type { FC, ReactNode } from 'react'
+import type { FC } from 'react'
+import { Button } from '@repo/ui/button'
+import { cn } from '@repo/ui/cn'
+import type { CatalogAgent } from '../../constants/catalog'
+import {
+  CATEGORY_STYLES,
+  CATEGORY_SUBTITLES,
+  type AgentCategory,
+} from '../../constants/categories'
+import { AgentCard } from '../agent-card'
+import { useShelf } from './hooks/use-shelf'
 
 interface CatalogSectionProps {
-  title: string
-  subtitle: string
-  children: ReactNode
+  category: AgentCategory
+  agents: readonly CatalogAgent[]
+  /** Lowercased profile names already on the roster. */
+  installed: ReadonlySet<string>
+  /** The first shelf sits a little further from the filter row than the rest. */
+  first?: boolean
 }
 
-export const CatalogSection: FC<CatalogSectionProps> = ({ title, subtitle, children }) => (
-  <section aria-label={title} className="flex flex-col gap-5">
-    <div className="flex flex-col gap-1">
-      <h2 className="text-heading-sm font-medium text-[rgb(var(--color-ink-7))]">{title}</h2>
-      <p className="text-label-sm text-[rgb(var(--color-ink-7)/0.5)]">{subtitle}</p>
-    </div>
-    {children}
-  </section>
-)
+/**
+ * One category's shelf: header, a four-column grid, and the tile that reveals the
+ * rest. "Show more <n>" counts the agents actually withheld, so a shelf with
+ * nothing more to give does not offer.
+ */
+export const CatalogSection: FC<CatalogSectionProps> = ({
+  category,
+  agents,
+  installed,
+  first,
+}) => {
+  const { visible, hidden, showAll } = useShelf(agents.length)
+  const { Icon, color } = CATEGORY_STYLES[category]
+
+  return (
+    <section aria-label={category} className={cn('flex flex-col gap-4 pt-2', { 'pt-4': first })}>
+      <div className="flex items-baseline gap-2.5">
+        <span
+          className="flex size-6 shrink-0 items-center justify-center self-center rounded-lg"
+          style={{ backgroundColor: color }}
+        >
+          <Icon className="size-3.5 text-black/60" />
+        </span>
+        <h2 className="text-label-lg font-medium text-primary">{category}</h2>
+        <p className="text-label-sm text-tertiary">{CATEGORY_SUBTITLES[category]}</p>
+      </div>
+
+      <div className="grid grid-cols-4 gap-4 pt-6">
+        {agents.slice(0, visible).map((agent) => (
+          <AgentCard
+            key={agent.id}
+            agent={agent}
+            installed={installed.has(agent.id.toLowerCase())}
+          />
+        ))}
+
+        {hidden > 0 ? (
+          <div className="col-start-3 col-end-5 flex items-center justify-center">
+            <Button
+              variant="secondary"
+              size="none"
+              className="h-9 rounded-[18px] px-5 text-label-md"
+              onClick={showAll}
+            >
+              Show more {hidden}
+            </Button>
+          </div>
+        ) : null}
+      </div>
+    </section>
+  )
+}

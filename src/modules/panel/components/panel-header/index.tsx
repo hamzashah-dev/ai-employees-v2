@@ -1,40 +1,45 @@
-import * as Tooltip from '@radix-ui/react-tooltip'
 import type { ComponentType, FC } from 'react'
-import { Button } from '@/modules/core/components/button'
-import {
-  ChevronLeftIcon,
-  CloseIcon,
-  SettingsIcon,
-  ShareIcon,
-} from '@/modules/core/components/icon'
+import { ChevronLeftIcon } from '@repo/icons/chevron-left'
+import { CrossIcon } from '@repo/icons/cross'
+import { MeetingShareIcon } from '@repo/icons/meeting-share-icon'
+import { SettingsIcon } from '@repo/icons/settings'
+import { Button } from '@repo/ui/button'
+import { WithTooltip } from '@repo/ui/tooltip'
+
+/**
+ * The canvas draws these at 32px with a 16px glyph, wider than the shipped
+ * header button's 28/20. Expressed through the house `Button` so focus, hover
+ * and disabled states stay the product's, with only the box and glyph resized.
+ */
+const HEADER_BUTTON = 'text-secondary [&>svg]:size-4'
 
 interface PanelHeaderProps {
   onClose: () => void
 }
 
 /**
- * Back, then a spacer, then share / settings / close.
+ * Back on the left; share, settings and close on the right.
  *
  * Back and close both collapse the drawer: the panel has no nested views to go
  * back to, and a chevron that does nothing is worse than one that does the
  * obvious thing.
  */
 export const PanelHeader: FC<PanelHeaderProps> = ({ onClose }) => (
-  <Tooltip.Provider delayDuration={200}>
-    <header className="flex h-14 shrink-0 items-center gap-1 border-b border-[rgb(var(--color-ink-2))] px-2">
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label="Back to the conversation"
-        onClick={onClose}
-      >
-        <ChevronLeftIcon />
-      </Button>
+  <header className="flex h-12 shrink-0 items-center justify-between px-3">
+    <Button
+      variant="icon-ghost"
+      size="icon-sm"
+      shape="pill"
+      className={HEADER_BUTTON}
+      aria-label="Back to the conversation"
+      onClick={onClose}
+    >
+      <ChevronLeftIcon />
+    </Button>
 
-      <div className="flex-1" />
-
+    <div className="flex items-center gap-1">
       <UnavailableAction
-        icon={ShareIcon}
+        icon={MeetingShareIcon}
         label="Share"
         tooltip="Sharing an employee isn’t available yet"
       />
@@ -43,12 +48,18 @@ export const PanelHeader: FC<PanelHeaderProps> = ({ onClose }) => (
         label="Employee settings"
         tooltip="Employee settings aren’t available yet"
       />
-
-      <Button variant="ghost" size="icon" aria-label="Close panel" onClick={onClose}>
-        <CloseIcon />
+      <Button
+        variant="icon-ghost"
+        size="icon-sm"
+        shape="pill"
+        className={HEADER_BUTTON}
+        aria-label="Close panel"
+        onClick={onClose}
+      >
+        <CrossIcon />
       </Button>
-    </header>
-  </Tooltip.Provider>
+    </div>
+  </header>
 )
 
 interface UnavailableActionProps {
@@ -63,35 +74,30 @@ interface UnavailableActionProps {
  * Rendered disabled and explained rather than left live and inert. The reason
  * is repeated in the accessible name because a disabled button never takes
  * focus, so the tooltip alone would never reach a keyboard or screen-reader
- * user.
+ * user. `WithTooltip` wraps its child in the trigger element, which is what
+ * makes the hover work at all: a disabled button dispatches no pointer events.
  */
 const UnavailableAction: FC<UnavailableActionProps> = ({
   icon: Icon,
   label,
   tooltip,
 }) => (
-  <Tooltip.Root>
-    {/* A disabled button dispatches no pointer events, so the wrapper hovers. */}
-    <Tooltip.Trigger asChild>
-      <span className="inline-flex">
-        <Button
-          variant="ghost"
-          size="icon"
-          disabled
-          aria-label={`${label} — not available yet`}
-        >
-          <Icon />
-        </Button>
-      </span>
-    </Tooltip.Trigger>
-    <Tooltip.Portal>
-      <Tooltip.Content
-        side="bottom"
-        sideOffset={6}
-        className="z-50 max-w-56 rounded-[12px] border border-[rgb(var(--color-ink-3))] bg-[rgb(var(--color-ink-2))] px-2.5 py-1.5 text-label-sm text-[rgb(var(--color-ink-6))] shadow-[var(--shadow-raised)]"
-      >
-        {tooltip}
-      </Tooltip.Content>
-    </Tooltip.Portal>
-  </Tooltip.Root>
+  <WithTooltip
+    content={tooltip}
+    size="sm"
+    showArrow={false}
+    className="inline-flex"
+    tooltipContentProps={{ side: 'bottom', sideOffset: 6, className: 'max-w-56' }}
+  >
+    <Button
+      variant="icon-ghost"
+      size="icon-sm"
+      shape="pill"
+      className={HEADER_BUTTON}
+      disabled
+      aria-label={`${label} — not available yet`}
+    >
+      <Icon />
+    </Button>
+  </WithTooltip>
 )

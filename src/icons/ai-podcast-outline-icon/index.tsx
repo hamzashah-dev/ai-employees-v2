@@ -2,7 +2,10 @@ import type { PropsWithClassName } from '@repo/types/common';
 import type { FC } from 'react';
 
 export const AIPodcastOutlineIcon: FC<PropsWithClassName> = ({ className }) => (
-  <svg width="18" height="18" fill="none" className={className}>
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 18 18" fill="none" className={className}>
     <path
       stroke="currentColor"
       strokeLinecap="round"

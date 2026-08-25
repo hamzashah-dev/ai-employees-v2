@@ -2,7 +2,10 @@ import type { PropsWithClassName } from '@repo/types/common';
 import type { FC } from 'react';
 
 export const LockIcon2: FC<PropsWithClassName> = ({ className }) => (
-  <svg width="14" height="14" fill="none" className={className}>
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 14 14" fill="none" className={className}>
     <path
       stroke="currentColor"
       strokeLinecap="round"

@@ -1,9 +1,12 @@
 import type { ComponentType, FC } from 'react'
-import { Button } from '@/modules/core/components/button'
-import { ClockIcon, PauseIcon, PlayIcon } from '@/modules/core/components/icon'
-import { Spinner } from '@/modules/core/components/status-pill'
+import { PauseIcon } from '@repo/icons/pause'
+import { PlayIcon } from '@repo/icons/play'
+import { PlayCircleIcon } from '@repo/icons/play-circle'
+import { TimeClockIcon } from '@repo/icons/time-clock-icon'
+import { Button } from '@repo/ui/button'
+import { cn } from '@repo/ui/cn'
+import { Spinner } from '@/modules/core/components/spinner'
 import type { HermesCronJob } from '@/modules/core/services/hermes/types'
-import { cn } from '@/modules/core/utils/cn'
 import { useRoutineActions } from '../../hooks/use-routine-actions'
 import { formatSchedule } from '../../utils/format-schedule'
 import { isRoutinePaused, routineLabel } from '../../utils/routine-state'
@@ -18,32 +21,26 @@ export const RoutineRow: FC<RoutineRowProps> = ({ job, profile }) => {
   const { pause, resume, trigger, error } = useRoutineActions(job.id, profile)
   const paused = isRoutinePaused(job)
   const label = routineLabel(job)
-
-  // Written as whole strings rather than through cn(): tailwind-merge reads the
-  // custom `text-label-sm` role token as a text *colour*, so merging it with a
-  // real colour drops the type scale and the line renders at body size.
-  const scheduleClass = paused
-    ? 'truncate text-label-sm text-[rgb(var(--color-ink-5))]'
-    : 'truncate text-label-sm text-[rgb(var(--color-ink-7)/0.5)]'
+  // The canvas states the routine twice: a paused one reads "Paused" under a
+  // pause glyph, a live one reads its schedule under a green clock.
+  const StateIcon = paused ? PauseIcon : TimeClockIcon
 
   return (
-    <li className="group flex items-start gap-3 rounded-[12px] px-3 py-2.5 hover:bg-[rgb(var(--color-ink-2))]">
-      <ClockIcon
-        className={cn(
-          'mt-0.5 size-4 shrink-0',
-          paused ? 'text-[rgb(var(--color-ink-5))]' : 'text-[rgb(var(--color-success))]',
-        )}
+    <li className="group flex items-start gap-2.5 px-1 py-2">
+      <StateIcon
+        className={cn('mt-0.5 size-4 shrink-0', {
+          'text-tertiary': paused,
+          'text-success': !paused,
+        })}
       />
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-label-md font-medium text-[rgb(var(--color-ink-7))]">
-          {label}
-        </p>
-        <p className={scheduleClass}>
+        <p className="truncate text-label-md text-primary">{label}</p>
+        <p className="truncate text-label-sm text-tertiary">
           {paused ? 'Paused' : formatSchedule(job.schedule)}
         </p>
         {error && (
-          <p role="status" className="text-label-sm text-[rgb(var(--color-danger))]">
+          <p role="status" className="text-label-sm text-critical">
             {error}
           </p>
         )}
@@ -66,7 +63,7 @@ export const RoutineRow: FC<RoutineRowProps> = ({ job, profile }) => {
           />
         )}
         <RowAction
-          icon={PlayIcon}
+          icon={PlayCircleIcon}
           label={`Run ${label} now`}
           pending={trigger.isPending}
           onClick={() => trigger.mutate()}
@@ -84,7 +81,8 @@ interface RowActionProps {
 }
 
 /**
- * A hover-revealed row action.
+ * A hover-revealed row action. The canvas draws no controls on a routine row,
+ * so they stay invisible until the pointer is in the row.
  *
  * Revealed by colour rather than `visibility`, which would drop the buttons out
  * of the tab order and strand keyboard users; `opacity` is not part of this
@@ -93,17 +91,17 @@ interface RowActionProps {
  */
 const RowAction: FC<RowActionProps> = ({ icon: Icon, label, pending, onClick }) => (
   <Button
-    variant="ghost"
-    size="icon"
+    variant="icon-ghost"
+    size="icon-xs"
+    shape="pill"
     aria-label={label}
     disabled={pending}
     onClick={onClick}
-    className={cn(
-      'hover:bg-[rgb(var(--color-ink-3))] focus-visible:text-[rgb(var(--color-ink-7))]',
-      pending
-        ? 'text-[rgb(var(--color-ink-6))]'
-        : 'text-transparent group-hover:text-[rgb(var(--color-ink-6))] group-hover:hover:text-[rgb(var(--color-ink-7))]',
-    )}
+    className={cn('[&>svg]:size-4', {
+      'text-secondary': pending,
+      'text-transparent group-hover:text-secondary group-hover:hover:text-primary focus-visible:text-primary':
+        !pending,
+    })}
   >
     {pending ? <Spinner className="size-4" /> : <Icon />}
   </Button>

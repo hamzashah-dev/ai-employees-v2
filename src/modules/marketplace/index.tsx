@@ -1,17 +1,9 @@
-import { useMemo, useState, type FC } from 'react'
-import { AgentGrid } from './components/agent-grid'
+import type { FC } from 'react'
 import { CatalogSection } from './components/catalog-section'
 import { CategoryChips } from './components/category-chips'
 import { EmptyState } from './components/empty-state'
 import { SearchField } from './components/search-field'
-import { CATALOG } from './constants/catalog'
-import {
-  AGENT_CATEGORIES,
-  CATEGORY_SUBTITLES,
-  type MarketplaceCategory,
-} from './constants/categories'
-import { useInstalledAgents } from './hooks/use-installed-agents'
-import { byInstalls, filterAgents } from './utils/filter-agents'
+import { useMarketplace } from './hooks/use-marketplace'
 
 /**
  * D15 — Marketplace, Discover.
@@ -19,88 +11,58 @@ import { byInstalls, filterAgents } from './utils/filter-agents'
  * Browsing is local: the shelf is a hand-authored constant because Hermes has
  * no catalog to ask. Installing is not — it creates a real profile, and the
  * roster query is what tells a card it is already hired.
+ *
+ * The canvas draws the content column `overflow:hidden` because it is a single
+ * 1600×900 artboard. Thirteen shelves do not fit in a viewport, so the column
+ * scrolls here, and the last row gets the bottom padding the artboard never
+ * needed — the one place this page departs from it.
  */
 export const MarketplaceView: FC = () => {
-  const [query, setQuery] = useState('')
-  const [category, setCategory] = useState<MarketplaceCategory>('All')
-  const installed = useInstalledAgents()
-
-  const search = query.trim()
-  const isFiltering = search !== '' || category !== 'All'
-
-  const matches = useMemo(
-    () => byInstalls(filterAgents(CATALOG, { query: search, category })),
-    [search, category],
-  )
-
-  const shelves = useMemo(
-    () =>
-      AGENT_CATEGORIES.map((name) => ({
-        name,
-        agents: byInstalls(CATALOG.filter((agent) => agent.category === name)),
-      })).filter((shelf) => shelf.agents.length > 0),
-    [],
-  )
-
-  const clearFilters = (): void => {
-    setQuery('')
-    setCategory('All')
-  }
+  const { query, setQuery, category, setCategory, search, shelves, installed, clearFilters } =
+    useMarketplace()
 
   return (
-    <div className="scrollbar-subtle h-full overflow-y-auto">
-      <div className="mx-auto w-full max-w-[1200px] px-8 py-14">
-        <header className="flex flex-col gap-3">
-          <h1 className="text-heading-lg font-medium text-[rgb(var(--color-ink-7))]">
-            Agent Marketplace
-          </h1>
-          <p className="max-w-[720px] text-body text-[rgb(var(--color-ink-7)/0.5)]">
-            Whole agents you hire into your roster — each runs on its own computer and
-            comes back finished.
-          </p>
+    <div className="flex-1 overflow-y-auto px-8 pb-8">
+      <div className="mx-auto flex max-w-[1200px] flex-col gap-5">
+        <header className="flex flex-col items-center gap-3 pt-4 text-center">
+          <div className="flex flex-col gap-1">
+            <h1 className="text-heading-lg font-medium text-primary">Agent Marketplace</h1>
+            <p className="text-body-md text-secondary">
+              Whole agents you hire into your roster — each runs on its own computer and
+              comes back finished.
+            </p>
+          </div>
+          <SearchField value={query} onChange={setQuery} />
         </header>
 
-        <div className="mt-10">
-          <SearchField value={query} onChange={setQuery} />
-        </div>
-
-        <div className="mt-6">
+        <div className="flex items-start justify-between gap-4">
           <CategoryChips value={category} onChange={setCategory} />
+          {/*
+            Skills an agent can *use* live in /ai-market — a different surface of the
+            product, linked and never merged, so this is a plain cross-app link rather
+            than a route.
+          */}
+          <a
+            href="/ai-market"
+            className="shrink-0 pt-2 text-label-sm text-brand hover:text-brand-hover"
+          >
+            Looking for skills? AI Market ↗
+          </a>
         </div>
 
-        <div className="mt-12 flex flex-col gap-14">
-          {isFiltering ? (
-            matches.length === 0 ? (
-              <EmptyState query={search} onClear={clearFilters} />
-            ) : (
-              <CatalogSection
-                title={category === 'All' ? 'Search results' : category}
-                subtitle={
-                  category === 'All'
-                    ? `${matches.length} ${matches.length === 1 ? 'agent' : 'agents'} matching “${search}”.`
-                    : CATEGORY_SUBTITLES[category]
-                }
-              >
-                <AgentGrid agents={matches} installed={installed} />
-              </CatalogSection>
-            )
-          ) : (
-            shelves.map((shelf) => (
-              <CatalogSection
-                key={shelf.name}
-                title={shelf.name}
-                subtitle={CATEGORY_SUBTITLES[shelf.name]}
-              >
-                <AgentGrid agents={shelf.agents} installed={installed} />
-              </CatalogSection>
-            ))
-          )}
-        </div>
-
-        <p className="mt-16 text-label-sm text-[rgb(var(--color-ink-7)/0.5)]">
-          Whole agents live here, hired into your roster. Skills an agent can use stay in
-          AI Market — linked, never merged.
-        </p>
+        {shelves.length === 0 ? (
+          <EmptyState query={search} onClear={clearFilters} />
+        ) : (
+          shelves.map((shelf, index) => (
+            <CatalogSection
+              key={shelf.category}
+              category={shelf.category}
+              agents={shelf.agents}
+              installed={installed}
+              first={index === 0}
+            />
+          ))
+        )}
       </div>
     </div>
   )

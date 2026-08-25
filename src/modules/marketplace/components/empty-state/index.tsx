@@ -1,5 +1,5 @@
 import type { FC } from 'react'
-import { Button } from '@/modules/core/components/button'
+import { Button } from '@repo/ui/button'
 
 interface EmptyStateProps {
   /** The raw search text, already trimmed. Empty when only a category is on. */
@@ -7,13 +7,17 @@ interface EmptyStateProps {
   onClear: () => void
 }
 
+/**
+ * Nothing on the canvas — it draws a full catalog — but a search that matches
+ * nothing has to say so, and say how to get back.
+ */
 export const EmptyState: FC<EmptyStateProps> = ({ query, onClear }) => (
-  <div className="flex flex-col items-start gap-4 rounded-[16px] border border-[rgb(var(--color-ink-2))] bg-[rgb(var(--color-ink-1))] px-6 py-10">
+  <div className="mt-4 flex flex-col items-start gap-4 rounded-2xl border border-primary bg-fill-elevated px-6 py-10">
     <div className="flex flex-col gap-1">
-      <p className="text-label-md text-[rgb(var(--color-ink-7))]">
+      <p className="text-label-lg font-medium text-primary">
         {query ? `No agents match “${query}”.` : 'Nothing on this shelf yet.'}
       </p>
-      <p className="text-label-sm text-[rgb(var(--color-ink-7)/0.5)]">
+      <p className="text-label-sm text-tertiary">
         {query
           ? 'Try a shorter word, or clear the search and browse the shelves.'
           : 'Every other category still has agents in it.'}

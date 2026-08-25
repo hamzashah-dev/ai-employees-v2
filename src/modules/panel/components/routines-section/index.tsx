@@ -1,6 +1,6 @@
 import { useId, type FC } from 'react'
-import { Button } from '@/modules/core/components/button'
-import { Spinner } from '@/modules/core/components/status-pill'
+import { Button } from '@repo/ui/button'
+import { Spinner } from '@/modules/core/components/spinner'
 import { useRoutines } from '../../hooks/use-routines'
 import { RoutineRow } from '../routine-row'
 import { RoutineSkeleton } from '../routine-skeleton'
@@ -9,25 +9,24 @@ interface RoutinesSectionProps {
   profile: string
 }
 
-/** Everything this employee runs without being asked. */
+/**
+ * Everything this employee runs without being asked.
+ *
+ * The 8px gap is the panel body's own rhythm, repeated inside so the heading
+ * and every row sit on it — the canvas has no dividers or padding here.
+ */
 export const RoutinesSection: FC<RoutinesSectionProps> = ({ profile }) => {
   const headingId = useId()
   const { data, isPending, isError, error, refetch, isFetching } = useRoutines(profile)
 
   return (
-    <section
-      aria-labelledby={headingId}
-      className="border-t border-[rgb(var(--color-ink-2))] px-1 py-4"
-    >
-      <h2
-        id={headingId}
-        className="px-3 pb-2 text-label-md font-medium text-[rgb(var(--color-ink-7))]"
-      >
+    <section aria-labelledby={headingId} className="flex flex-col gap-2">
+      <h2 id={headingId} className="text-label-md font-medium text-primary">
         Routines
       </h2>
 
       {isPending && (
-        <ul>
+        <ul className="flex flex-col gap-2">
           {[0, 1, 2].map((row) => (
             <RoutineSkeleton key={row} />
           ))}
@@ -35,8 +34,8 @@ export const RoutinesSection: FC<RoutinesSectionProps> = ({ profile }) => {
       )}
 
       {isError && (
-        <div className="mx-2 flex items-center gap-3 rounded-[12px] border border-[rgb(var(--color-ink-2))] px-3 py-3">
-          <p className="min-w-0 flex-1 text-label-sm text-[rgb(var(--color-danger))]">
+        <div className="flex items-center gap-2.5 rounded-xl border border-primary px-3 py-3">
+          <p className="min-w-0 flex-1 text-label-sm text-critical">
             {error?.message || 'Couldn’t load routines.'}
           </p>
           <Button
@@ -53,14 +52,14 @@ export const RoutinesSection: FC<RoutinesSectionProps> = ({ profile }) => {
 
       {data &&
         (data.length === 0 ? (
-          <div className="mx-2 rounded-[12px] border border-[rgb(var(--color-ink-2))] px-3 py-4">
-            <p className="text-label-md text-[rgb(var(--color-ink-7))]">No routines yet</p>
-            <p className="pt-1 text-label-sm text-[rgb(var(--color-ink-7)/0.5)]">
+          <div className="rounded-xl border border-primary px-3 py-4">
+            <p className="text-label-md text-primary">No routines yet</p>
+            <p className="pt-1 text-label-sm text-tertiary">
               Routines are scheduled jobs this employee runs on its own.
             </p>
           </div>
         ) : (
-          <ul>
+          <ul className="flex flex-col gap-2">
             {data.map((job) => (
               <RoutineRow key={job.id} job={job} profile={profile} />
             ))}

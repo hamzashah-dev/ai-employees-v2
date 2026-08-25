@@ -2,7 +2,10 @@ import type { PropsWithClassName } from '@repo/types/common';
 import type { FC } from 'react';
 
 export const WhatsappIcon: FC<PropsWithClassName> = ({ className }) => (
-  <svg width="24" height="24" fill="none" className={className}>
+  <svg
+    width="24"
+    height="24"
+    viewBox="0 0 24 24" fill="none" className={className}>
     <path
       fill="#67c15e"
       fillRule="evenodd"

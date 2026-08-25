@@ -1,107 +1,50 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type FC,
-  type KeyboardEvent,
-  type PointerEvent,
-} from 'react'
-import { cn } from '@/modules/core/utils/cn'
-import { PANEL_WIDTH_MAX, PANEL_WIDTH_MIN, PANEL_WIDTH_STEP } from '../../constants'
-import { clampPanelWidth } from '../../utils/panel-width'
+import type { FC, KeyboardEvent, PointerEvent } from 'react'
+import { cn } from '@repo/ui/cn'
+import { PANEL_WIDTH_MAX, PANEL_WIDTH_MIN } from '../../constants'
 
 interface ResizeHandleProps {
-  /** The drawer's current width, in px. */
+  /** The drawer's current width, in px — the slider's value. */
   width: number
-  onResize: (width: number) => void
+  isDragging: boolean
+  onPointerDown: (event: PointerEvent<HTMLDivElement>) => void
+  onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void
 }
 
 /**
- * The shipped artifact drawer's handle: a 1px line with a 3px hit area.
+ * A 3px hit strip carrying a 1px line, straddling the drawer's own border.
  *
- * A `role="separator"` with a tabindex is the ARIA window-splitter pattern, so
- * arrow keys move it for anyone who cannot drag. Pointer capture means a fast
- * drag that leaves the 3px strip — or the window — still tracks and still ends.
+ * At rest the line is invisible: it sits exactly over `border-l border-primary`,
+ * so the seam you see is the border, and the strip is only a target. Hover,
+ * focus and drag turn it accent — the make code-pane splitter's treatment,
+ * which is what the canvas draws.
+ *
+ * `role="slider"` rather than `separator`: the strip has a value, a range and
+ * arrow keys, and a resize control with no keyboard path is not usable.
  */
-export const ResizeHandle: FC<ResizeHandleProps> = ({ width, onResize }) => {
-  const [dragging, setDragging] = useState(false)
-  const origin = useRef<{ x: number; width: number } | null>(null)
-
-  // The pointer spends a drag over the thread, not the handle, so the cursor
-  // and the selection lock have to be set on the document for the duration.
-  useEffect(() => {
-    if (!dragging) return
-    const { style } = document.body
-    const previousCursor = style.cursor
-    const previousSelect = style.userSelect
-    style.cursor = 'col-resize'
-    style.userSelect = 'none'
-    return () => {
-      style.cursor = previousCursor
-      style.userSelect = previousSelect
-    }
-  }, [dragging])
-
-  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0) return
-    event.preventDefault()
-    origin.current = { x: event.clientX, width }
-    try {
-      event.currentTarget.setPointerCapture(event.pointerId)
-    } catch {
-      // Capture is an optimisation; the drag still works without it.
-    }
-    setDragging(true)
-  }
-
-  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
-    const start = origin.current
-    if (!start) return
-    // The drawer is anchored right, so pulling the handle left widens it.
-    onResize(clampPanelWidth(start.width + (start.x - event.clientX)))
-  }
-
-  const endDrag = (event: PointerEvent<HTMLDivElement>) => {
-    if (!origin.current) return
-    origin.current = null
-    setDragging(false)
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId)
-    }
-  }
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
-    event.preventDefault()
-    const delta = event.key === 'ArrowLeft' ? PANEL_WIDTH_STEP : -PANEL_WIDTH_STEP
-    onResize(clampPanelWidth(width + delta))
-  }
-
-  return (
+export const ResizeHandle: FC<ResizeHandleProps> = ({
+  width,
+  isDragging,
+  onPointerDown,
+  onKeyDown,
+}) => (
+  <div
+    role="slider"
+    aria-orientation="vertical"
+    aria-label="Resize panel"
+    aria-valuenow={width}
+    aria-valuemin={PANEL_WIDTH_MIN}
+    aria-valuemax={PANEL_WIDTH_MAX}
+    tabIndex={0}
+    className="group absolute inset-y-0 -left-0.5 z-[2] w-[3px] cursor-col-resize touch-none select-none"
+    onPointerDown={onPointerDown}
+    onKeyDown={onKeyDown}
+  >
     <div
-      role="separator"
-      aria-orientation="vertical"
-      aria-label="Resize panel"
-      aria-valuenow={width}
-      aria-valuemin={PANEL_WIDTH_MIN}
-      aria-valuemax={PANEL_WIDTH_MAX}
-      tabIndex={0}
-      className="group absolute inset-y-0 left-0 z-10 -ml-[1px] w-[3px] cursor-col-resize touch-none"
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={endDrag}
-      onPointerCancel={endDrag}
-      onKeyDown={handleKeyDown}
-    >
-      <div
-        aria-hidden
-        className={cn(
-          'absolute inset-y-0 left-[1px] w-px',
-          'group-hover:bg-[rgb(var(--color-brand)/0.35)]',
-          'group-focus-visible:bg-[rgb(var(--color-brand)/0.35)]',
-          dragging && 'bg-[rgb(var(--color-brand)/0.35)]',
-        )}
-      />
-    </div>
-  )
-}
+      aria-hidden
+      className={cn(
+        'absolute inset-y-0 left-0.5 w-px transition-colors group-hover:bg-fill-brand group-focus-visible:bg-fill-brand',
+        { 'bg-fill-brand': isDragging },
+      )}
+    />
+  </div>
+)

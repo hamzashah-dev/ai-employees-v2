@@ -2,7 +2,10 @@ import type { PropsWithClassName } from '@repo/types/common';
 import type { FC } from 'react';
 
 export const CrownFilledIcon: FC<PropsWithClassName> = ({ className }) => (
-  <svg width="14" height="13" fill="none" className={className}>
+  <svg
+    width="14"
+    height="13"
+    viewBox="0 0 14 13" fill="none" className={className}>
     <path
       fill="currentColor"
       stroke="currentColor"

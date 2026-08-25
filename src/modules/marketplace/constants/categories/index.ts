@@ -1,3 +1,20 @@
+import type { FC } from 'react'
+import type { PropsWithClassName } from '@repo/types/common'
+import { ChatBubbleIcon } from '@repo/icons/chat-bubble-icon'
+import { ColorPaletteIcon } from '@repo/icons/color-palette'
+import { DollarSignIcon } from '@repo/icons/dollar-sign-icon'
+import { FileTextIcon } from '@repo/icons/file-text'
+import { GraduationCapIcon } from '@repo/icons/graduation-cap-icon'
+import { HeartPulseIcon } from '@repo/icons/heart-pulse-icon'
+import { HomeIcon } from '@repo/icons/home-icon'
+import { MegaphoneIcon } from '@repo/icons/megaphone-icon'
+import { PeopleIcon } from '@repo/icons/people-icon'
+import { ShieldCheckIcon } from '@repo/icons/shield-check'
+import { TelescopeIcon } from '@repo/icons/telescope-icon'
+import { TerminalIcon } from '@repo/icons/terminal-icon'
+import { ToolBoxIcon } from '@repo/icons/tool-box'
+import { IDENTITY_COLORS } from '@/modules/core/constants/identity'
+
 /**
  * The marketplace's shelf order.
  *
@@ -29,19 +46,52 @@ export const CATEGORIES = ['All', ...AGENT_CATEGORIES] as const
 
 export type MarketplaceCategory = (typeof CATEGORIES)[number]
 
-/** One line under each section heading. Same register as the taglines. */
+/** One line under each section heading, in the canvas's register — no full stop. */
 export const CATEGORY_SUBTITLES: Record<AgentCategory, string> = {
-  Personal: 'The ones that hold your day together.',
-  Engineering: 'They take the small work so you keep the hard part.',
-  'Business Ops': 'Hiring, accounts, and the follow-ups nobody gets to.',
-  Content: 'Scripts, cuts and covers, made to a brief.',
-  Research: 'They read everything and hand back what matters.',
-  Creative: 'Look and feel, from a rough idea to something you can ship.',
-  'Home & Devices': 'They run the house while you are not thinking about it.',
-  Money: 'Receipts, invoices, and the month-end close.',
-  'Health & Wellbeing': 'Training and habits that fit the week you actually have.',
-  Comms: 'Calls, replies, and the notes afterwards.',
-  Learning: 'They turn reading into something that stays.',
-  'Security & Privacy': 'They watch the doors and tell you what to close.',
-  'Growth & Marketing': 'Launches, pages, and the posts around them.',
+  Personal: 'Your own day, handled',
+  Engineering: 'They take the small work so you keep the hard part',
+  'Business Ops': 'Keep the business running',
+  Content: 'Scripts, cuts and posts on cadence',
+  Research: 'They read everything and hand back what matters',
+  Creative: 'A rough idea, made into something you can ship',
+  'Home & Devices': 'They run the house while you are not thinking about it',
+  Money: 'Receipts, invoices, and the month-end close',
+  'Health & Wellbeing': 'Training that fits the week you actually have',
+  Comms: 'Calls, replies, and the notes afterwards',
+  Learning: 'They turn reading into something that stays',
+  'Security & Privacy': 'They watch the doors and tell you what to close',
+  'Growth & Marketing': 'Launches, pages, and the posts around them',
+}
+
+/**
+ * The 24px tile in each section header.
+ *
+ * The hue is one of the six employee identity colours, so a shelf header reads as
+ * part of the same family as the blobs on its cards. Three are the canvas's own
+ * choices — Personal blue with `ic-emp`, Business Ops green with `ic-toolbox`,
+ * Content cyan with `ic-file`; the other ten follow the same rule, with no two
+ * neighbouring shelves sharing a hue. Decorative, so the hue stays an inline
+ * `rgb(...)`: there is no semantic token for an identity colour.
+ */
+export interface CategoryStyle {
+  Icon: FC<PropsWithClassName>
+  color: string
+}
+
+const [BLUE, CYAN, YELLOW, PURPLE, GREEN, RED] = IDENTITY_COLORS
+
+export const CATEGORY_STYLES: Record<AgentCategory, CategoryStyle> = {
+  Personal: { Icon: PeopleIcon, color: BLUE },
+  Engineering: { Icon: TerminalIcon, color: PURPLE },
+  'Business Ops': { Icon: ToolBoxIcon, color: GREEN },
+  Content: { Icon: FileTextIcon, color: CYAN },
+  Research: { Icon: TelescopeIcon, color: BLUE },
+  Creative: { Icon: ColorPaletteIcon, color: RED },
+  'Home & Devices': { Icon: HomeIcon, color: YELLOW },
+  Money: { Icon: DollarSignIcon, color: GREEN },
+  'Health & Wellbeing': { Icon: HeartPulseIcon, color: RED },
+  Comms: { Icon: ChatBubbleIcon, color: CYAN },
+  Learning: { Icon: GraduationCapIcon, color: YELLOW },
+  'Security & Privacy': { Icon: ShieldCheckIcon, color: BLUE },
+  'Growth & Marketing': { Icon: MegaphoneIcon, color: PURPLE },
 }
