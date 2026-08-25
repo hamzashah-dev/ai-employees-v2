@@ -211,9 +211,9 @@ into components.
 ### Be honest about what the backend cannot do
 
 This is the most important product rule in the repo, and the existing code follows it
-consistently. Hermes has no user-identity endpoint, no per-profile role or avatar, no approval
-RPC, no progress fraction, no marketplace catalogue. Where the design asks for something the
-backend cannot supply:
+consistently. Hermes has no user-identity endpoint, no per-profile role or avatar, no progress
+fraction, no marketplace catalogue. Where the design asks for something the backend cannot
+supply:
 
 - **Do not invent an endpoint or fabricate plausible-looking data.**
 - Render the honest state — indeterminate rather than a made-up percentage; "Open thread"
@@ -222,6 +222,13 @@ backend cannot supply:
 
 A user who believes they approved a spend and did not is worse off than one who can see the
 control is not wired.
+
+**But check the claim before you make it.** The inverse failure is just as bad: several places
+in this app still say approvals "are not sent back to the agent yet", and that is **false** —
+`approval.respond` exists (`tui_gateway/server.py`), takes `{session_id, choice, all}`, and the
+`approval.request` payload already carries the `choices` to offer. Telling a user a working
+control is inert is its own kind of lie. Verify against `tui_gateway/server.py` rather than
+trusting a comment.
 
 ### Known wire gotchas
 

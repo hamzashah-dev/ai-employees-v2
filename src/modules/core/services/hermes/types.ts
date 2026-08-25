@@ -61,7 +61,6 @@ export function isEventFrame(frame: JsonRpcFrame): frame is JsonRpcEventFrame {
  */
 export const HERMES_EVENTS = [
   'gateway.ready',
-  'session.seeded',
   'session.info',
   'session.title',
   'message.start',
@@ -77,6 +76,23 @@ export const HERMES_EVENTS = [
   'status.update',
   'approval.request',
   'background.complete',
+  'notification.show',
+  'notification.clear',
+  // Blocking requests. The gateway's `_block()` helper emits one of these and
+  // then *parks the whole agent thread* until the matching `<name>.respond` RPC
+  // arrives or the wait expires — 300s for clarify/secret, 120s for sudo, 30s
+  // for terminal.read. Nothing answers them today, so an agent asking a
+  // clarifying question reads as a hang. On expiry the gateway emits the
+  // `.expire` twin so a late responder gets a clean signal instead of a raw
+  // JSON-RPC "no pending request" error.
+  'clarify.request',
+  'clarify.expire',
+  'secret.request',
+  'secret.expire',
+  'sudo.request',
+  'sudo.expire',
+  'terminal.read.request',
+  'terminal.read.expire',
   'error',
 ] as const
 
@@ -88,14 +104,34 @@ export interface MessageDeltaPayload {
 
 export interface MessageCompletePayload {
   text?: string
+  /** `complete` · `interrupted` · `error`. */
   status?: string
-  usage?: { input_tokens?: number; output_tokens?: number }
+  /** Cumulative session totals, not per-turn. Built by `_get_usage`. */
+  usage?: {
+    model?: string
+    input?: number
+    output?: number
+    reasoning?: number
+    total?: number
+    calls?: number
+  }
+  /** `result.last_reasoning` — the final reasoning block, already streamed via `reasoning.delta`. */
+  reasoning?: string
+  /** e.g. history desynced mid-turn and the answer was not persisted. */
+  warning?: string
 }
 
 export interface ToolStartPayload {
   tool_id?: string
   name?: string
-  args?: unknown
+  /**
+   * Human label built server-side by `agent/display.py:build_tool_label`
+   * ("Listing skills"). Empty string for tools with no `_TOOL_VERBS` entry —
+   * every `forge_tool` and every MCP/plugin tool.
+   */
+  context?: string
+  /** Verbose sessions only. There is no `args` on `tool.start`; it is complete-only. */
+  args_text?: string
 }
 
 export interface ToolCompletePayload {
@@ -104,19 +140,102 @@ export interface ToolCompletePayload {
   args?: unknown
   result?: unknown
   summary?: string
+  /** Absent when no matching `tool.start` was recorded for this id. */
   duration_s?: number
+  /** `todo` only — the authoritative full list, unlike the partial merge on start. */
+  todos?: unknown[]
+  /**
+   * A rendered edit diff. Load-bearing: its presence makes the gateway emit
+   * `tool.complete` even when tool progress is off, i.e. with no `tool.start`.
+   */
+  inline_diff?: string
+  /** Verbose sessions only. */
+  result_text?: string
 }
 
+/**
+ * Built from `tools/approval.py`'s `approval_data` — command/description, not
+ * an id. There is no `approval_id`: `approval.respond` is keyed by session
+ * (`{session_id, choice, all}`), so at most one approval is outstanding per
+ * session at a time.
+ */
 export interface ApprovalRequestPayload {
-  approval_id?: string
-  tool?: string
-  summary?: string
-  detail?: string
+  command?: string
+  description?: string
+  pattern_key?: string
+  pattern_keys?: string[]
+  allow_permanent?: boolean
+  allow_session?: boolean
+  smart_denied?: boolean
+  /** Derived server-side, e.g. `['once', 'session', 'always', 'deny']`. */
+  choices?: string[]
 }
 
 export interface StatusUpdatePayload {
+  /** `status` · `process` · `lifecycle` · `compacting`. */
+  kind?: string
   text?: string
-  status?: string
+}
+
+/** Real provider reasoning, token-streamed. The one to accumulate. */
+export interface ReasoningDeltaPayload {
+  text?: string
+  verbose?: boolean
+}
+
+/**
+ * Despite the name, the first 500 chars of the *answer* — `_on_tool_progress`
+ * forwards `assistant_message.content`, not reasoning. Fires once per tool-loop
+ * iteration. See THINKING-STATES-SCOPE.md; do not render it as reasoning.
+ */
+export type ReasoningAvailablePayload = ReasoningDeltaPayload
+
+/** The kawaii spinner — `"(⌐■_■) cogitating..."`. Not reasoning. */
+export interface ThinkingDeltaPayload {
+  text?: string
+}
+
+/** The model is still typing the arguments: no `tool_id` exists yet. */
+export interface ToolGeneratingPayload {
+  name?: string
+}
+
+export interface MessageInterimPayload {
+  text?: string
+  already_streamed?: boolean
+}
+
+/** The credits/quota channel. `key` is the handle `notification.clear` cancels. */
+export interface NotificationShowPayload {
+  text?: string
+  level?: string
+  kind?: string
+  ttl_ms?: number
+  key?: string
+  id?: string
+}
+
+export interface NotificationClearPayload {
+  key?: string
+}
+
+/** `request_id` is what the matching `<name>.respond` RPC must echo back. */
+export interface ClarifyRequestPayload {
+  request_id?: string
+  question?: string
+  choices?: string[]
+}
+
+export interface SecretRequestPayload {
+  request_id?: string
+  prompt?: string
+  env_var?: string
+  metadata?: Record<string, unknown>
+}
+
+/** `sudo.request` carries nothing but the id, as does every `.expire`. */
+export interface BlockingRequestExpirePayload {
+  request_id?: string
 }
 
 export interface ErrorPayload {
@@ -126,12 +245,28 @@ export interface ErrorPayload {
 
 // -------------------------------------------------------------- rpc shapes
 
+/**
+ * Doubles as the `session.info` *event* payload — the RPC result and the event
+ * are both `_session_info()`. That event fires in the `finally` of every turn,
+ * which is why `running` is the reliable busy signal.
+ */
 export interface HermesSessionInfo {
   model?: string
-  tools?: string[]
-  skills?: string[]
+  provider?: string
+  /** Grouped by toolset, e.g. `{ web: ['web_search'] }` — not a flat list. */
+  tools?: Record<string, string[]>
+  skills?: Record<string, string[]>
   cwd?: string
   lazy?: boolean
+  /** True while a turn is in flight on this session. */
+  running?: boolean
+  /**
+   * `""` = provider default, `"none"` = reasoning off, otherwise a level. Lets
+   * the UI decide whether to offer a reasoning affordance before any tokens
+   * arrive. Note `display.show_reasoning` is a client hint only — the gateway
+   * streams `reasoning.delta` regardless of it.
+   */
+  reasoning_effort?: string
   /**
    * Reports the *process-global* profile, never the one the session was
    * created with — it comes from `_current_profile_name()`, which reads
@@ -141,10 +276,29 @@ export interface HermesSessionInfo {
   profile_name?: string
 }
 
+/**
+ * A row as `_history_to_messages` serializes it. Two shapes share the type:
+ *   - `user` / `assistant` / `system`: `{ role, text }` plus, on assistant rows,
+ *     the reasoning columns below — persisted in full, no 500-char cap.
+ *   - `tool`: `{ role: 'tool', name, context }` and nothing else. `tool_id`,
+ *     `args`, `result`, `duration_s`, `summary` and `inline_diff` all exist in
+ *     SQLite's `tool_calls` column but are dropped by the serializer, so richer
+ *     replay is a backend change, not a client one.
+ */
 export interface HermesWireMessage {
   role?: string
   content?: unknown
   text?: string
+  /** Plain string. */
+  reasoning?: unknown
+  /** Plain string; alternative provider field name. */
+  reasoning_content?: unknown
+  /** OpenRouter unified: `[{ type, summary | thinking | content | text }]`. */
+  reasoning_details?: unknown
+  /** Tool rows only: the machine name. */
+  name?: string
+  /** Tool rows only: the same `build_tool_label` string live `tool.start` carries. */
+  context?: string
   [key: string]: unknown
 }
 

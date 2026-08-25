@@ -36,7 +36,7 @@ export const MessageList: FC<MessageListProps> = ({
   const last = messages[messages.length - 1]
   // Everything that can change the column's height: a new message, more
   // streamed text, another tool row, the approval card appearing.
-  const contentKey = `${messages.length}:${last?.text.length ?? 0}:${last?.tools?.length ?? 0}:${approval?.id ?? ''}:${error ?? ''}`
+  const contentKey = `${messages.length}:${last?.text.length ?? 0}:${last?.segments.length ?? 0}:${approval?.id ?? ''}:${error ?? ''}`
 
   const { scrollRef, atBottom, scrollToBottom } = useStickToBottom<HTMLDivElement>(
     contentKey,
