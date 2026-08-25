@@ -14,4 +14,4 @@ export const NEAR_BOTTOM_PX = 80
  * the sidebar footer; both belong in `core/constants` once that module is
  * writable.
  */
-export const ACCOUNT_NAME = 'Imagine User'
+

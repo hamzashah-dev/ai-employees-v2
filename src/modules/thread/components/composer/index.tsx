@@ -17,6 +17,8 @@ interface ComposerProps {
   working: boolean
   connection: ConnectionState
   columnClassName: string
+  /** Overrides the default "Message <name>" prompt — the chat home asks anything of anyone. */
+  placeholder?: string
 }
 
 export const Composer: FC<ComposerProps> = ({
@@ -25,6 +27,7 @@ export const Composer: FC<ComposerProps> = ({
   working,
   connection,
   columnClassName,
+  placeholder,
 }) => {
   const {
     value,
@@ -54,8 +57,8 @@ export const Composer: FC<ComposerProps> = ({
             minRows={1}
             maxRows={10}
             disabled={offline}
-            placeholder={`Message ${displayName}`}
-            aria-label={`Message ${displayName}`}
+            placeholder={placeholder ?? `Message ${displayName}`}
+            aria-label={placeholder ?? `Message ${displayName}`}
             aria-describedby={note ? noteId : undefined}
             className="scrollbar-minimal w-full resize-none bg-transparent text-body-md text-primary outline-none placeholder:text-tertiary disabled:text-disabled disabled:placeholder:text-tertiary-disabled"
           />

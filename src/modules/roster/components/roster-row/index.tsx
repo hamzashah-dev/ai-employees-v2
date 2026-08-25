@@ -63,9 +63,7 @@ export const RosterRow: FC<RosterRowProps> = ({ entry }) => {
           <span className="truncate text-label-sm text-tertiary">{entry.subtitle}</span>
         </span>
 
-        {needsUser && (
-          <AlertTriangleIcon className="size-3.5 shrink-0 text-warning" />
-        )}
+        {needsUser && <AlertTriangleIcon className="size-3.5 shrink-0 text-warning" />}
         {!needsUser && isUnread && (
           <span
             role="img"

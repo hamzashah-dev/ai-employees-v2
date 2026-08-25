@@ -122,8 +122,26 @@ export const HISTORY_ROWS: string[] = [
  * Hermes exposes no user identity or billing endpoint, so the footer is a
  * constant. One edit here when there is a real one.
  */
-export const ACCOUNT_NAME = 'Imagine User'
-export const ACCOUNT_PLAN = 'Pro Plan'
+
+
 
 /** The one workspace this build talks to — the Hermes install behind it. */
 export const WORKSPACE_NAME = 'ImagineComputer'
+
+/**
+ * The Computer platform's logo, as a pure-CSS orb.
+ *
+ * Upstream this entry is a remote still — `getCDNUrl('images/imagine-computer/
+ * computer-platform.png')` — resolved from `NEXT_PUBLIC_APP_CDN_URL` and
+ * `NEXT_PUBLIC_CDN_BUCKET_PATH`. Those are Vercel-only (the monorepo keeps no `.env`, you pull
+ * them with `pnpm vercel:envs`), and the file is not committed anywhere, so a standalone build
+ * cannot resolve it.
+ *
+ * `PlatformSwitcherItem` already models this case: "exactly one of `imageSrc` /
+ * `logoGradientClassName` is set per entry", the latter being "Tailwind classes painting the
+ * entry logo as a pure-CSS gradient orb". So this uses the component's own supported second
+ * path rather than a guessed URL or a network dependency. Swap it for the still once the app
+ * lives in the monorepo and the env vars resolve.
+ */
+export const WORKSPACE_LOGO_GRADIENT =
+  'bg-[radial-gradient(circle_at_32%_26%,#F6CDEA_0%,#DCC1F4_22%,#A9A5EE_44%,#5C7BE4_68%,#1F49C4_86%,#122E77_100%)]'

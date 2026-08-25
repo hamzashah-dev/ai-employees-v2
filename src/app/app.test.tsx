@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import type { HermesProfile } from '@/modules/core/services/hermes/types'
 
 /**
@@ -106,16 +106,33 @@ describe('App', () => {
     vi.restoreAllMocks()
   })
 
-  it('mounts and renders the roster', async () => {
+  it('shows the default sidebar at the chat home, not the roster', async () => {
+    vi.stubGlobal('fetch', stubFetch([profile('ad-creator')]))
+
+    render(<App />)
+
+    // `/` is the one route outside an Employees root, so the sidebar is in default mode:
+    // the full product nav, with Employees as a row rather than the roster it swaps to.
+    // This is what makes the mode swap reachable at all.
+    expect(await screen.findByText('Sites')).toBeInTheDocument()
+    expect(await screen.findByText('AI Tools')).toBeInTheDocument()
+    expect(screen.queryByText('Ad Creator')).not.toBeInTheDocument()
+  })
+
+  it('swaps the whole sidebar body to the roster under an Employees route', async () => {
+    window.history.pushState({}, '', '/employees')
     vi.stubGlobal('fetch', stubFetch([profile('ad-creator'), profile('inbox-manager')]))
 
     render(<App />)
 
     expect(await screen.findByText('Ad Creator')).toBeInTheDocument()
     expect(await screen.findByText('Inbox Manager')).toBeInTheDocument()
+    // Replaced, not nested — the default nav is gone.
+    expect(screen.queryByText('AI Tools')).not.toBeInTheDocument()
   })
 
   it('renders roster rows against the real session payload', async () => {
+    window.history.pushState({}, '', '/employees')
     vi.stubGlobal(
       'fetch',
       stubFetch([profile('ad-creator'), profile('inbox-manager')], { withSessions: true }),
@@ -129,37 +146,16 @@ describe('App', () => {
     expect(await screen.findByText('8 filed, 1 with your note')).toBeInTheDocument()
   })
 
-  it('lands on an employee thread rather than a dashboard', async () => {
+  it('lands on the Employees dashboard, not a thread', async () => {
+    window.history.pushState({}, '', '/employees')
     vi.stubGlobal('fetch', stubFetch([profile('ad-creator')]))
 
     render(<App />)
 
-    // `/employees` has no home of its own by design; it resolves to an employee.
-    await waitFor(() => {
-      expect(window.location.pathname).toBe('/employees/ad-creator')
-    })
-  })
-
-  it('returns to the last employee you spoke to', async () => {
-    localStorage.setItem('employees:last-profile', 'inbox-manager')
-    vi.stubGlobal('fetch', stubFetch([profile('ad-creator'), profile('inbox-manager')]))
-
-    render(<App />)
-
-    await waitFor(() => {
-      expect(window.location.pathname).toBe('/employees/inbox-manager')
-    })
-  })
-
-  it('ignores a remembered employee who no longer exists', async () => {
-    localStorage.setItem('employees:last-profile', 'fired-employee')
-    vi.stubGlobal('fetch', stubFetch([profile('ad-creator')]))
-
-    render(<App />)
-
-    await waitFor(() => {
-      expect(window.location.pathname).toBe('/employees/ad-creator')
-    })
+    // D3 gives the Employees destination a dashboard of its own, so it no longer
+    // redirects into whichever thread you had open last.
+    expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/employees')
   })
 
   it('surfaces a roster failure instead of rendering an empty shell', async () => {

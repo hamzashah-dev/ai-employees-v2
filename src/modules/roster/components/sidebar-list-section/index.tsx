@@ -1,5 +1,6 @@
 import type { FC } from 'react'
 import { cn } from '@repo/ui/cn'
+import { useSidebarCollapsed } from '../../contexts/sidebar-collapsed'
 
 interface SidebarListSectionProps {
   title: string
@@ -17,7 +18,14 @@ export const SidebarListSection: FC<SidebarListSectionProps> = ({
   title,
   rows,
   className,
-}) => (
+}) => {
+  const isCollapsed = useSidebarCollapsed()
+
+  // Nothing here survives an icon rail — these rows are text with no glyph — so the whole
+  // section goes rather than leaving a stub heading behind.
+  if (isCollapsed) return null
+
+  return (
   <>
     <div className={cn('pt-1 pr-1 pl-2', className)}>
       <p className="line-clamp-1 text-label-md font-medium text-tertiary">{title}</p>
@@ -31,4 +39,5 @@ export const SidebarListSection: FC<SidebarListSectionProps> = ({
       </div>
     ))}
   </>
-)
+  )
+}

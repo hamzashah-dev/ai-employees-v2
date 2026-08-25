@@ -1,13 +1,13 @@
-import type { FC } from 'react'
-import type { PropsWithClassName } from '@repo/types/common'
+import type { ComponentType } from 'react'
 
 export interface RosterSidebarProps {
   /**
-   * Collapses the sidebar. Owned by the app shell rather than here, because the
-   * shell also owns the main column's offset and the below-`desktop-sm` drawer.
-   * Until it is wired the brand row's toggle renders disabled.
+   * Whether the collapse control shrinks the sidebar to its icon rail. False inside the
+   * below-`desktop-sm` drawer, where the same control dismisses the drawer instead.
    */
-  onToggleCollapse?: () => void
+  collapsible?: boolean
+  /** Closes the drawer. Only used when `collapsible` is false. */
+  onDismiss?: () => void
 }
 
 /**
@@ -31,12 +31,11 @@ export interface RosterEntry {
 export interface RosterNavItem {
   to: string
   label: string
-  /** Icons take className only and inherit colour through `currentColor`. */
-  icon: FC<PropsWithClassName>
+  /** Icons take className only and inherit colour. */
+  icon: ComponentType<{ className?: string }>
   /**
-   * Match this path exactly. Set on Employees so an open thread lights up its
-   * roster row alone rather than two rows at once — which is what the design
-   * draws on D6.
+   * Match this path exactly. Set where a row would otherwise stay lit for every
+   * nested route beneath it.
    */
   end?: boolean
   badge?: string

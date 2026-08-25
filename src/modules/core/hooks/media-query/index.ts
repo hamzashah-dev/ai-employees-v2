@@ -30,7 +30,14 @@ type Matcher = [(cb: () => void) => () => void, () => boolean]
  */
 const MATCHERS: Record<string, Matcher> = {}
 
+/** Nothing matches where there is no matchMedia (jsdom, non-DOM runtimes). */
+const NEVER: Matcher = [() => () => {}, () => false]
+
 const register = (query: string): Matcher => {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return NEVER
+  }
+
   const list = window.matchMedia(query)
   const matcher: Matcher = [
     (cb) => {

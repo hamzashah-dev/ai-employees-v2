@@ -1,7 +1,9 @@
 import type { FC } from 'react'
 import { BellIcon } from '@repo/icons/bell-icon'
+import { MenuIcon } from '@repo/icons/menu'
+import { Button } from '@repo/ui/button'
 import { cn } from '@repo/ui/cn'
-import { AccountAvatar } from '../account-avatar'
+import { AccountAvatar } from '@/modules/core/components/account-avatar'
 
 /**
  * The main column's title bar, above the dashboard and the marketplace.
@@ -14,20 +16,33 @@ import { AccountAvatar } from '../account-avatar'
  */
 interface TopBarProps {
   title?: string
+  /** Opens the sidebar drawer. Only rendered below `desktop-sm`, where the panel is hidden. */
+  onOpenSidebar?: () => void
   className?: string
 }
 
-export const TopBar: FC<TopBarProps> = ({ title, className }) => (
+export const TopBar: FC<TopBarProps> = ({ title, onOpenSidebar, className }) => (
   <header
-    className={cn(
-      'flex h-12 shrink-0 items-center gap-4 px-4',
-      title ? 'justify-between' : 'justify-end',
-      className,
-    )}
+    className={cn('flex h-12 shrink-0 items-center gap-4 px-4', className)}
   >
+    {onOpenSidebar ? (
+      <Button
+        variant="icon-ghost"
+        size="icon-sm"
+        shape="pill"
+        aria-label="Open sidebar"
+        onClick={onOpenSidebar}
+        className="shrink-0 text-secondary desktop-sm:hidden [&>svg]:size-5"
+      >
+        <MenuIcon />
+      </Button>
+    ) : null}
+
     {title ? (
       <span className="truncate text-label-md font-medium text-primary">{title}</span>
     ) : null}
+
+    <div className="flex-1" />
 
     <div className="flex shrink-0 items-center gap-4">
       {/*

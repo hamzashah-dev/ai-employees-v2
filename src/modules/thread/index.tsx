@@ -9,6 +9,8 @@ interface ThreadViewProps {
   profile: string
   panelOpen: boolean
   onTogglePanel: () => void
+  /** Opens the sidebar drawer. Only shown below `desktop-sm`, where the panel is hidden. */
+  onOpenSidebar?: () => void
 }
 
 /**
@@ -18,7 +20,12 @@ interface ThreadViewProps {
  * employee panel is open — the thread reflows rather than being covered, so the
  * reading width stays comfortable instead of the text being squeezed.
  */
-export const ThreadView: FC<ThreadViewProps> = ({ profile, panelOpen, onTogglePanel }) => {
+export const ThreadView: FC<ThreadViewProps> = ({
+  profile,
+  panelOpen,
+  onTogglePanel,
+  onOpenSidebar,
+}) => {
   const { thread, connection } = useThread(profile)
   const displayName = toDisplayName(profile)
   const working = thread?.status === 'working'
@@ -32,6 +39,7 @@ export const ThreadView: FC<ThreadViewProps> = ({ profile, panelOpen, onTogglePa
         displayName={displayName}
         panelOpen={panelOpen}
         onTogglePanel={onTogglePanel}
+        onOpenSidebar={onOpenSidebar}
       />
 
       <MessageList
