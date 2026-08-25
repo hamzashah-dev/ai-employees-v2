@@ -1,7 +1,7 @@
 import { Fragment } from 'react'
 import type { FC } from 'react'
+import { cn } from '@repo/ui/cn'
 import type { ApprovalRequest, ChatMessage } from '@/modules/core/types/chat'
-import { cn } from '@/modules/core/utils/cn'
 import { TIME_SEPARATOR_MS } from '../../constants'
 import { useStickToBottom } from '../../hooks/use-stick-to-bottom'
 import { ApprovalCard } from '../approval-card'
@@ -18,6 +18,7 @@ interface MessageListProps {
   displayName: string
   messages: ChatMessage[]
   approval?: ApprovalRequest
+  working: boolean
   /** Thread-level failure, e.g. history could not be loaded. */
   error?: string
   columnClassName: string
@@ -28,13 +29,14 @@ export const MessageList: FC<MessageListProps> = ({
   displayName,
   messages,
   approval,
+  working,
   error,
   columnClassName,
 }) => {
   const last = messages[messages.length - 1]
   // Everything that can change the column's height: a new message, more
   // streamed text, another tool row, the approval card appearing.
-  const contentKey = `${messages.length}:${last?.text.length ?? 0}:${last?.tools?.length ?? 0}:${approval?.id ?? ''}:${error ?? ''}`
+  const contentKey = `${messages.length}:${last?.text.length ?? 0}:${last?.segments.length ?? 0}:${approval?.id ?? ''}:${error ?? ''}`
 
   const { scrollRef, atBottom, scrollToBottom } = useStickToBottom<HTMLDivElement>(
     contentKey,
@@ -43,10 +45,10 @@ export const MessageList: FC<MessageListProps> = ({
 
   return (
     <div className="relative min-h-0 flex-1">
-      <div ref={scrollRef} className="scrollbar-subtle h-full overflow-y-auto">
+      <div ref={scrollRef} className="scrollbar-minimal h-full overflow-y-auto px-6">
         <section
           aria-label={`Conversation with ${displayName}`}
-          className={cn('mx-auto flex w-full flex-col gap-6 px-6 py-8', columnClassName)}
+          className={cn('mx-auto flex flex-col gap-5 pt-6', columnClassName)}
         >
           {messages.length === 0 && !error ? (
             <EmptyState profile={profile} displayName={displayName} />
@@ -71,7 +73,9 @@ export const MessageList: FC<MessageListProps> = ({
             })
           )}
 
-          {approval && <ApprovalCard profile={profile} approval={approval} />}
+          {approval && (
+            <ApprovalCard profile={profile} approval={approval} working={working} />
+          )}
           {error && <MessageError text={error} />}
         </section>
       </div>

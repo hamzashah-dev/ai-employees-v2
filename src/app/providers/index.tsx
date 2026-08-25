@@ -3,6 +3,14 @@ import { TooltipProvider } from '@radix-ui/react-tooltip'
 import type { FC, ReactNode } from 'react'
 import { useState } from 'react'
 
+/*
+ * Side-effect import: loading the theme store puts the persisted theme on `<html>`. It is
+ * pulled in here, at the root, rather than from the control that changes it — the toggle
+ * lives in the TopBar and the thread route draws no TopBar, so a light-theme user opening a
+ * thread directly would otherwise land on a dark page.
+ */
+import '@/modules/core/stores/theme-store'
+
 /**
  * Retrying a 401 is pointless — the session token is injected once at page load,
  * so it will still be wrong on the next attempt. Everything else gets one retry.

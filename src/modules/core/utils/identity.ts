@@ -12,22 +12,31 @@
  * in localStorage; it is a per-device preference, not synced state.
  */
 
-const IDENTITY_COLORS = [
-  'var(--color-identity-1)',
-  'var(--color-identity-2)',
-  'var(--color-identity-3)',
-  'var(--color-identity-4)',
-  'var(--color-identity-5)',
-  'var(--color-identity-6)',
-  'var(--color-identity-7)',
-  'var(--color-identity-8)',
-] as const
+import {
+  IDENTITY_COLORS,
+  MASCOT_SHAPES,
+  type MascotShape,
+} from '../constants/identity'
 
-export type MascotShape = 'blob' | 'drop' | 'triangle' | 'cloud'
-
-const MASCOT_SHAPES: readonly MascotShape[] = ['blob', 'drop', 'triangle', 'cloud']
+export type { MascotShape }
 
 const OVERRIDE_KEY = 'employees:identity-overrides'
+
+/**
+ * The key the identity is derived from, canonicalised the way Hermes canonicalises a profile
+ * name: `normalize_profile_name` in `computer_cli/profiles.py` is `name.strip().lower()`, and
+ * `create_profile` runs it before the directory is made.
+ *
+ * That matters because the two surfaces hash *different strings for the same employee*: a
+ * marketplace card is keyed by the catalogue id it POSTs as `name`, a roster row by whatever
+ * `GET /api/profiles` hands back afterwards. Without this the two could disagree on shape and
+ * colour and the identity would not survive the hire. Today's catalogue ids are already
+ * canonical slugs, so this is a guard rather than a live fix — but it is the only thing making
+ * that a fact rather than a coincidence.
+ */
+function identityKey(profile: string): string {
+  return profile.trim().toLowerCase()
+}
 
 /** FNV-1a. Small, stable across runs, and good enough to spread short names. */
 function hash(value: string): number {
@@ -58,7 +67,8 @@ export function setIdentityOverride(profile: string, override: IdentityOverride)
   if (typeof localStorage === 'undefined') return
   try {
     const all = readOverrides()
-    all[profile] = { ...all[profile], ...override }
+    const key = identityKey(profile)
+    all[key] = { ...all[key], ...override }
     localStorage.setItem(OVERRIDE_KEY, JSON.stringify(all))
   } catch {
     // A full or disabled localStorage must not break rendering.
@@ -66,7 +76,7 @@ export function setIdentityOverride(profile: string, override: IdentityOverride)
 }
 
 export interface EmployeeIdentity {
-  /** A `var(--color-identity-N)` reference, for use in inline style. */
+  /** A resolved `rgb(...)` string, for use in inline style or an SVG `fill`. */
   color: string
   shape: MascotShape
   /** Uppercase initials, used where a mascot is too small to read. */
@@ -74,8 +84,9 @@ export interface EmployeeIdentity {
 }
 
 export function getIdentity(profile: string): EmployeeIdentity {
-  const override = readOverrides()[profile]
-  const h = hash(profile)
+  const key = identityKey(profile)
+  const override = readOverrides()[key]
+  const h = hash(key)
 
   const colorIndex = override?.colorIndex ?? h % IDENTITY_COLORS.length
   const shape =

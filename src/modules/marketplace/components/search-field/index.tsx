@@ -1,25 +1,34 @@
 import type { FC } from 'react'
-import { SearchIcon } from '@/modules/core/components/icon'
+import { SearchIcon } from '@repo/icons/search'
 
 interface SearchFieldProps {
   value: string
   onChange: (value: string) => void
 }
 
+/**
+ * The search box, as the user's reference draws it: a small pill on the control
+ * row rather than the 640px hero bar this page used to open with. It shrinks
+ * with the row on a narrow viewport instead of overflowing.
+ *
+ * The focus ring is drawn on the pill rather than the bare input so it traces
+ * the shape you see. The visible placeholder is the reference's terse `Search`;
+ * the accessible name stays the fuller "Search agents", because a screen-reader
+ * user hearing "Search" on a page with a sidebar search has no idea which one
+ * they are in.
+ */
 export const SearchField: FC<SearchFieldProps> = ({ value, onChange }) => (
-  <label className="flex h-12 w-full max-w-[640px] items-center gap-3 rounded-[24px] border border-[rgb(var(--color-ink-2))] bg-[rgb(var(--color-ink-1))] px-5">
+  <label className="flex h-8 w-[168px] items-center gap-2 rounded-full bg-fill px-3 focus-within:ring-2 focus-within:ring-brand tablet:w-[200px]">
     <span className="sr-only">Search agents</span>
-    <SearchIcon className="size-[18px] shrink-0 text-[rgb(var(--color-ink-7)/0.5)]" />
+    <SearchIcon className="size-4 shrink-0 text-tertiary" />
     <input
       type="text"
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      placeholder="Search agents"
+      placeholder="Search"
       autoComplete="off"
       spellCheck={false}
-      // Radius matched to the pill so the global focus ring traces its shape
-      // rather than boxing the bare input.
-      className="h-9 min-w-0 flex-1 rounded-[24px] bg-transparent text-label-md text-[rgb(var(--color-ink-7))] placeholder:text-[rgb(var(--color-ink-7)/0.5)]"
+      className="min-w-0 flex-1 bg-transparent text-label-md text-primary outline-none placeholder:text-tertiary"
     />
   </label>
 )

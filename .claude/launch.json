@@ -1,0 +1,26 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ai-employees-v2",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "VITE_HERMES_URL=http://127.0.0.1:9119 npm run dev"
+      ],
+      "port": 5190
+    },
+    {
+      "name": "design-canvas",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5191",
+        "--directory",
+        "/private/tmp/claude-501/-Users-vyro-Desktop-Chatly-Imagine-ai-employees-v2/b18485ef-04fe-4d80-a5cd-7e3bdd6783d8/scratchpad/design"
+      ],
+      "port": 5191
+    }
+  ]
+}

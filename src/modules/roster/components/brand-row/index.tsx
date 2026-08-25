@@ -1,28 +1,64 @@
 import type { FC } from 'react'
 import { Link } from 'react-router-dom'
-import { CollapseIcon, LogoMarkIcon } from '@/modules/core/components/icon'
+import { cn } from '@repo/ui/cn'
+import { LayoutSidebarLeftIcon } from '@repo/icons/layout-sidebar-left'
+import { ImagineLogo } from '@repo/icons/imagine-logo'
+import { SidebarImagineLogoWithText } from '@repo/icons/sidebar-imagine-logo-with-text'
+import { ROUTES } from '../../constants'
+import { useSidebarCollapsed } from '../../contexts/sidebar-collapsed'
+
+interface BrandRowProps {
+  /** Collapses the rail on desktop, dismisses the drawer below `desktop-sm`. */
+  onToggle?: () => void
+}
 
 /**
- * The sidebar header, matching chatly's: logo mark and wordmark on the left,
- * with the collapse control appearing only on hover so the resting state stays
- * clean.
+ * The sidebar header: the 127x20 wordmark, and the collapse toggle on the right.
+ *
+ * Collapsed, the wordmark drops to its mark and the toggle moves out of the row — a 127px
+ * lockup does not fit a 48px rail, and the toggle would crowd the mark. It comes back with
+ * the panel; the rail is expanded again from the mark itself.
  */
-export const BrandRow: FC<{ onToggle?: () => void }> = ({ onToggle }) => (
-  <div className="group/header flex h-12 items-center justify-between px-3">
-    <Link to="/" className="flex items-center gap-2">
-      <LogoMarkIcon className="size-5 text-[rgb(var(--color-content-primary))]" />
-      <span className="text-label-lg font-medium text-[rgb(var(--color-content-primary))]">
-        Imagine
-      </span>
-    </Link>
+export const BrandRow: FC<BrandRowProps> = ({ onToggle }) => {
+  const isCollapsed = useSidebarCollapsed()
 
-    <button
-      type="button"
-      aria-label="Toggle sidebar"
-      onClick={onToggle}
-      className="flex size-7 items-center justify-center rounded-xl text-[rgb(var(--color-content-primary)/0.5)] opacity-0 transition-opacity duration-200 group-hover/header:opacity-100 hover:bg-[rgb(var(--color-fill-secondary))] hover:text-[rgb(var(--color-content-primary))] focus-visible:opacity-100"
+  return (
+    <div
+      className={cn(
+        'flex shrink-0 items-center p-2',
+        isCollapsed ? 'justify-center' : 'justify-between',
+      )}
     >
-      <CollapseIcon className="size-4 stroke-[1.2px]" />
-    </button>
-  </div>
-)
+      {isCollapsed ? (
+        <button
+          type="button"
+          aria-label="Expand sidebar"
+          aria-expanded={false}
+          title="Expand sidebar"
+          onClick={onToggle}
+          className="group/brand flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-xl transition-all duration-200 ease-linear hover:bg-fill-secondary"
+        >
+          <ImagineLogo className="size-5 text-primary group-hover/brand:hidden" />
+          <LayoutSidebarLeftIcon className="hidden size-4 stroke-[1.2px] text-primary group-hover/brand:block" />
+        </button>
+      ) : (
+        <>
+          <Link to={ROUTES.NEW_CHAT} aria-label="Imagine" className="p-[5px]">
+            <SidebarImagineLogoWithText className="h-5 w-[127px] shrink-0 text-primary" />
+          </Link>
+
+          <button
+            type="button"
+            aria-label="Collapse sidebar"
+            aria-expanded
+            title="Collapse sidebar"
+            onClick={onToggle}
+            className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-xl text-secondary transition-all duration-200 ease-linear hover:bg-fill-secondary hover:text-primary"
+          >
+            <LayoutSidebarLeftIcon className="size-4 stroke-[1.2px]" />
+          </button>
+        </>
+      )}
+    </div>
+  )
+}

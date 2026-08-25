@@ -1,12 +1,9 @@
-@import 'tailwindcss';
+@import './tokens.css';
 
 /*
- * Google Sans Flex — the same variable font file chatly-web self-hosts at
- * `apps/web/public/fonts/GoogleSansFlex.ttf`. It is not publicly
- * distributable, which is why it is vendored rather than pulled from a CDN.
- *
- * Declaring the family in the tokens without loading it is what made the UI
- * fall through to system Helvetica and stop looking like the product.
+ * Google Sans Flex — the same variable font file imagine-computer-web self-hosts at
+ * `apps/web/public/fonts/GoogleSansFlex.ttf`. It is not publicly distributable, which
+ * is why it is vendored rather than pulled from a CDN.
  */
 @font-face {
   font-family: 'Google Sans Flex';
@@ -16,158 +13,18 @@
   font-display: swap;
 }
 
-/*
- * Design tokens — transcribed from "AI Employees Canvas.dc.html".
- *
- * The canvas links the ImagineArt design system but uses none of it: 1042
- * inline style attributes, zero var(--…), and Chatly blue #0088FF as the accent
- * rather than the DS's Imagine purple. So the *architecture* here follows the
- * DS/chatly-web convention (RGB-triplet primitives -> semantic aliases ->
- * @theme inline) while every *value* comes from the canvas, which is the
- * approved design.
- *
- * Primitives are space-separated RGB triplets so any semantic token can take an
- * alpha suffix: `bg-surface-2/50` works because the underlying value composes.
- * Only tier-2 semantics would be redeclared for a light theme — tier 1 never
- * changes. The canvas is dark-only, but writing it this way is what makes a
- * light pass a day's work instead of a fortnight's.
- */
-
-@theme {
-  /* ---------------------------------------------------------------- tier 1 */
-  /* Neutral ink ramp. Eight steps, exactly as the canvas uses them. */
-  --color-ink-0: 15 15 15; /* #0F0F0F  app background */
-  --color-ink-1: 23 23 23; /* #171717  raised chrome, cards */
-  --color-ink-2: 33 33 33; /* #212121  surface-2, hairline, user bubble */
-  --color-ink-3: 46 46 46; /* #2E2E2E  surface-3, selected, strong border */
-  --color-ink-4: 61 61 61; /* #3D3D3D */
-  --color-ink-5: 87 87 87; /* #575757  disabled, mono URL */
-  --color-ink-6: 189 189 189; /* #BDBDBD  secondary text */
-  --color-ink-7: 255 255 255; /* #FFFFFF  primary text */
-
-  /* Brand ramp — Chatly blue. */
-  --color-brand: 0 136 255; /* #0088FF */
-  --color-brand-soft: 187 215 255; /* #BBD7FF  links, unread dots */
-  --color-brand-deep: 0 51 129; /* #003381  callouts, "Working" fill */
-
-  /* Semantic pairs (IBM Carbon, as the canvas uses them). */
-  --color-success: 36 161 72; /* #24A148 */
-  --color-success-bg: 2 45 13; /* #022D0D */
-  --color-warning: 178 134 0; /* #B28600 */
-  --color-warning-bg: 48 36 0; /* #302400 */
-  --color-danger: 250 77 86; /* #FA4D56 */
-
-  /* Employee identity hues. Assigned by hash of profile name.
-     Deliberately excludes the status greens/ambers/reds used by pills so an
-     avatar can never be mistaken for a state. */
-  --color-identity-1: 0 136 255; /* #0088FF */
-  --color-identity-2: 0 199 234; /* #00C7EA */
-  --color-identity-3: 241 194 27; /* #F1C21B */
-  --color-identity-4: 124 58 237; /* #7C3AED */
-  --color-identity-5: 36 161 72; /* #24A148 */
-  --color-identity-6: 250 77 86; /* #FA4D56 */
-  --color-identity-7: 87 87 87; /* #575757 */
-  --color-identity-8: 255 122 0; /* #FF7A00 */
-
-  /* ---------------------------------------------------------------- tier 2 */
-  --color-canvas: var(--color-ink-0);
-  --color-surface-1: var(--color-ink-1);
-  --color-surface-2: var(--color-ink-2);
-  --color-surface-3: var(--color-ink-3);
-
-  --color-content-primary: var(--color-ink-7);
-  --color-content-secondary: var(--color-ink-6);
-  --color-content-disabled: var(--color-ink-5);
-
-  --color-border-subtle: var(--color-ink-2);
-  --color-border-default: var(--color-ink-3);
-  --color-border-strong: var(--color-ink-4);
-
+:root {
   /*
-   * chatly-web's semantic fill names, mapped onto the same ramp.
-   *
-   * Its `--neutral-*` scale is identical to the ink ramp above (110 = 15 15 15
-   * down to 50 = 189 189 189), so these are aliases rather than new colours.
-   * Naming them the way chatly does lets the sidebar be ported class-for-class
-   * instead of re-derived, and keeps the two in step if the palette moves.
-   *
-   * Dark-theme mapping, from packages/ui/src/styles/globals.css:
-   *   --bg-fill-variant        neutral-100  (ink-1)
-   *   --bg-fill-variant-hover  neutral-90   (ink-2)
-   *   --bg-fill-variant-active neutral-80   (ink-3)
-   *   --bg-fill-secondary      neutral-90   (ink-2)
+   * Bound here rather than in the token layer so that file stays a faithful copy of
+   * the monorepo's. Upstream these two come from next/font.
    */
-  --color-fill-variant: var(--color-ink-1);
-  --color-fill-variant-hover: var(--color-ink-2);
-  --color-fill-variant-active: var(--color-ink-3);
-  --color-fill-secondary: var(--color-ink-2);
-  --color-surface-variant: var(--color-ink-1);
-
-  /* --------------------------------------------------------------- type */
-  --font-sans:
+  --font-google-sans:
     'Google Sans Flex', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
     sans-serif;
-  --font-mono: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-
-  /* The canvas ties letter-spacing strictly to size, so each role token
-     carries size + line-height + tracking together. There should be no
-     leading-* or tracking-* utility anywhere in this codebase. */
-  --text-label-xs: 11px;
-  --text-label-xs--line-height: 16px;
-  --text-label-xs--letter-spacing: 0.55px;
-
-  --text-label-sm: 12px;
-  --text-label-sm--line-height: 16px;
-  --text-label-sm--letter-spacing: 0.48px;
-
-  --text-label-md: 14px;
-  --text-label-md--line-height: 20px;
-  --text-label-md--letter-spacing: 0.42px;
-
-  /* chatly's label-lg — 16/20 at 2% tracking. Used by the sidebar wordmark. */
-  --text-label-lg: 16px;
-  --text-label-lg--line-height: 20px;
-  --text-label-lg--letter-spacing: 0.32px;
-
-  --text-body: 16px;
-  --text-body--line-height: 24px;
-  --text-body--letter-spacing: 0.32px;
-
-  --text-heading-sm: 20px;
-  --text-heading-sm--line-height: 28px;
-  --text-heading-sm--letter-spacing: 0.01em;
-
-  --text-heading-md: 24px;
-  --text-heading-md--line-height: 32px;
-  --text-heading-md--letter-spacing: 0.01em;
-
-  --text-heading-lg: 32px;
-  --text-heading-lg--line-height: 40px;
-  --text-heading-lg--letter-spacing: 0.01em;
-
-  /* ------------------------------------------------------------- geometry */
-  --radius-row: 12px;
-  --radius-card: 16px;
-  --radius-bubble: 20px;
-  --radius-well: 24px;
-
-  /* The canvas has exactly two shadows and no gradients, blurs, filters or
-     transforms. Keep it that way — flatness is the design. */
-  --shadow-window: 0 24px 64px rgb(0 0 0 / 0.45);
-  --shadow-raised: 0 2px 4px rgb(0 0 0 / 0.16);
-
-  /* Layout constants the canvas specifies exactly. */
-  --spacing-sidebar: 256px;
-  --spacing-thread: 768px;
-  --spacing-thread-narrow: 600px;
-  --spacing-panel: 480px;
+  --font-roboto-mono: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 @layer base {
-  * {
-    border-color: rgb(var(--color-border-subtle));
-  }
-
   html,
   body,
   #root {
@@ -175,9 +32,9 @@
   }
 
   body {
-    background-color: rgb(var(--color-canvas));
-    color: rgb(var(--color-content-primary));
-    font-family: var(--font-sans);
+    background-color: rgb(var(--bg-primary));
+    color: rgb(var(--content-primary));
+    font-family: var(--font-googleSansFlex);
     font-size: var(--text-label-md);
     line-height: var(--text-label-md--line-height);
     letter-spacing: var(--text-label-md--letter-spacing);
@@ -185,38 +42,29 @@
   }
 
   /*
-   * The canvas specifies no focus states at all — every interactive element in
-   * it is a plain div. That is a gap in the design, not a decision to copy: a
-   * keyboard user must be able to see where they are. One consistent ring,
-   * visible only for keyboard navigation.
+   * `@repo/icons` ships 228 modules carrying `strokeWidth="currentStroke"` — not a
+   * valid SVG value, so browsers fall back to `stroke-width: 1` and those glyphs
+   * render thinner than the rest of the family. Pinning it to 1.5 (the package's
+   * majority value) here keeps `src/icons` a byte-faithful mirror of the source.
+   * Remove when the upstream package is fixed.
+   */
+  svg [stroke-width='currentStroke'],
+  svg[stroke-width='currentStroke'] {
+    stroke-width: 1.5;
+  }
+
+  /*
+   * The canvas draws every interactive element as a plain div, so it specifies no
+   * focus state at all. That is a gap in the design rather than a decision to copy —
+   * a keyboard user has to be able to see where they are.
    */
   :focus-visible {
-    outline: 2px solid rgb(var(--color-brand));
+    outline: 2px solid rgb(var(--border-brand));
     outline-offset: 2px;
-    border-radius: 4px;
   }
 
   ::selection {
-    background-color: rgb(var(--color-brand) / 0.3);
-  }
-}
-
-@layer utilities {
-  /* Thin scrollbars matching the ink ramp. */
-  .scrollbar-subtle {
-    scrollbar-width: thin;
-    scrollbar-color: rgb(var(--color-ink-3)) transparent;
-  }
-  .scrollbar-subtle::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-  .scrollbar-subtle::-webkit-scrollbar-thumb {
-    background-color: rgb(var(--color-ink-3));
-    border-radius: 999px;
-  }
-  .scrollbar-subtle::-webkit-scrollbar-track {
-    background: transparent;
+    background-color: rgb(var(--primary-60) / 0.3);
   }
 }
 
@@ -228,4 +76,27 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/*
+ * `animate-shimmer` — the sweeping-highlight text treatment the house UI uses for a
+ * "still working" label (`animate-shimmer bg-clip-text text-transparent`).
+ *
+ * The token layer already carries the `shimmer` keyframes and an `--animate-shimmer`
+ * theme entry, but the port dropped this utility along with the rest of the decorative
+ * ones — and it is the half that supplies the gradient. Without it `bg-clip-text
+ * text-transparent` clips against no background at all and the label renders invisible.
+ * Copied from `packages/ui/src/styles/globals.css`; it deliberately re-declares
+ * `animation`, overriding the theme entry's 4s with upstream's 5s.
+ */
+@utility animate-shimmer {
+  background-size: 200% 100%;
+  animation: shimmer 5s infinite linear;
+  background-position: 0 0;
+  background-image: linear-gradient(
+    to right,
+    rgb(var(--content-tertiary)) 45%,
+    rgb(var(--content-primary)) 50%,
+    rgb(var(--content-tertiary)) 55%
+  );
 }

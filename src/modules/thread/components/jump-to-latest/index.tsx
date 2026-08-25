@@ -13,7 +13,7 @@ export const JumpToLatest: FC<JumpToLatestProps> = ({ onClick }) => (
     <button
       type="button"
       onClick={onClick}
-      className="pointer-events-auto flex h-8 items-center rounded-full border border-[rgb(var(--color-ink-3))] bg-[rgb(var(--color-ink-1))] px-3.5 text-label-sm text-[rgb(var(--color-ink-6))] shadow-[var(--shadow-raised)] hover:bg-[rgb(var(--color-ink-2))] hover:text-[rgb(var(--color-ink-7))]"
+      className="pointer-events-auto flex h-8 cursor-pointer items-center rounded-full border border-secondary bg-fill-elevated px-3.5 text-label-sm text-secondary shadow-xs hover:bg-fill-elevated-hover hover:text-primary"
     >
       Jump to latest
     </button>

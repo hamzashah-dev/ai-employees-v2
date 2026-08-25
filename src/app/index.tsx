@@ -1,5 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
-import { lazy, Suspense, useEffect, useState, type FC } from 'react'
+import { lazy, Suspense, useState, type FC, type ReactNode } from 'react'
 import {
   BrowserRouter,
   Navigate,
@@ -9,18 +8,22 @@ import {
 } from 'react-router-dom'
 
 import { Providers } from './providers'
+import { AppSidebar } from './components/app-sidebar'
 import { ConnectionBanner } from './components/connection-banner'
+import { TopBar } from './components/top-bar'
 import { useHermesConnection } from '@/modules/core/hooks/use-hermes'
-import { fetchProfiles } from '@/modules/core/services/hermes/rest'
-import { RosterSidebar } from '@/modules/roster'
+import { ROUTES } from '@/modules/roster/constants'
 
 /**
- * The thread is the landing view, so it stays in the main bundle. The panel and
- * the marketplace are opened deliberately and carry the heaviest dependencies
- * (markdown rendering, the catalog), so they load on demand.
+ * The thread is the view people land in from the roster, so it stays in the main bundle.
+ * The panel, marketplace and dashboard are opened deliberately and carry the heavier
+ * dependencies (markdown rendering, the catalog), so they load on demand.
  */
 const ThreadView = lazy(() =>
   import('@/modules/thread').then((m) => ({ default: m.ThreadView })),
+)
+const ChatHomeView = lazy(() =>
+  import('@/modules/thread/usecases/chat-home').then((m) => ({ default: m.ChatHomeView })),
 )
 const EmployeePanel = lazy(() =>
   import('@/modules/panel').then((m) => ({ default: m.EmployeePanel })),
@@ -28,68 +31,28 @@ const EmployeePanel = lazy(() =>
 const MarketplaceView = lazy(() =>
   import('@/modules/marketplace').then((m) => ({ default: m.MarketplaceView })),
 )
+const DashboardView = lazy(() =>
+  import('@/modules/dashboard').then((m) => ({ default: m.DashboardView })),
+)
 
-const LAST_EMPLOYEE_KEY = 'employees:last-profile'
-
-function readLastEmployee(): string | null {
-  try {
-    return localStorage.getItem(LAST_EMPLOYEE_KEY)
-  } catch {
-    return null
-  }
-}
-
-function writeLastEmployee(profile: string): void {
-  try {
-    localStorage.setItem(LAST_EMPLOYEE_KEY, profile)
-  } catch {
-    // Private browsing or disabled storage — losing the preference is fine.
-  }
+interface PageProps {
+  onOpenSidebar: () => void
 }
 
 /**
- * `/employees` has no landing page of its own by design, so it resolves to the
- * employee you were last talking to, falling back to the first in the roster.
+ * One employee's thread, with the panel as a flex sibling rather than an overlay.
+ *
+ * The panel measures its own `parentElement` to clamp a drag, so it has to stay a direct
+ * child of this row — wrapping it would break the resize maths.
+ *
+ * This page draws no {@link TopBar}: the thread has its own header carrying the employee's
+ * avatar, name and the panel toggle.
  */
-const EmployeesIndex: FC = () => {
-  const { data: profiles, isPending, isError, error } = useQuery({
-    queryKey: ['profiles'],
-    queryFn: fetchProfiles,
-  })
-
-  if (isPending) return <CentredNote>Loading your team…</CentredNote>
-
-  if (isError) {
-    return (
-      <CentredNote tone="danger">
-        Could not reach Hermes. {(error as Error).message}
-      </CentredNote>
-    )
-  }
-
-  const names = profiles.map((p) => p.name)
-  if (names.length === 0) {
-    return (
-      <CentredNote>
-        No employees yet. Hire one from the Marketplace to get started.
-      </CentredNote>
-    )
-  }
-
-  const last = readLastEmployee()
-  const target = last && names.includes(last) ? last : names[0]
-  return <Navigate to={`/employees/${encodeURIComponent(target ?? '')}`} replace />
-}
-
-const EmployeeRoute: FC = () => {
+const EmployeeRoute: FC<PageProps> = ({ onOpenSidebar }) => {
   const { profile } = useParams<{ profile: string }>()
   const [panelOpen, setPanelOpen] = useState(false)
 
-  useEffect(() => {
-    if (profile) writeLastEmployee(profile)
-  }, [profile])
-
-  if (!profile) return <Navigate to="/employees" replace />
+  if (!profile) return <Navigate to={ROUTES.EMPLOYEES} replace />
 
   return (
     <div className="flex min-h-0 flex-1">
@@ -98,51 +61,92 @@ const EmployeeRoute: FC = () => {
         profile={profile}
         panelOpen={panelOpen}
         onTogglePanel={() => setPanelOpen((open) => !open)}
+        onOpenSidebar={onOpenSidebar}
       />
       {panelOpen && <EmployeePanel profile={profile} onClose={() => setPanelOpen(false)} />}
     </div>
   )
 }
 
+/** A titled page: top bar, then the module's own content region. */
+const Page: FC<{ title?: string; onOpenSidebar: () => void; children: ReactNode }> = ({
+  title,
+  onOpenSidebar,
+  children,
+}) => (
+  <>
+    <TopBar title={title} onOpenSidebar={onOpenSidebar} />
+    {children}
+  </>
+)
+
 const Shell: FC = () => {
   useHermesConnection()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const openSidebar = (): void => setSidebarOpen(true)
 
   return (
-    <div className="flex h-screen flex-col bg-[rgb(var(--color-canvas))]">
+    <div className="flex h-screen flex-col bg-primary">
       <ConnectionBanner />
       <div className="flex min-h-0 flex-1">
-        <RosterSidebar />
+        <AppSidebar open={sidebarOpen} onOpenChange={setSidebarOpen} />
         <main className="flex min-w-0 flex-1 flex-col">
           <Suspense fallback={<CentredNote>Loading…</CentredNote>}>
             <Routes>
-              <Route path="/" element={<Navigate to="/employees" replace />} />
-              <Route path="/employees" element={<EmployeesIndex />} />
-              <Route path="/employees/:profile" element={<EmployeeRoute />} />
-              <Route path="/marketplace" element={<MarketplaceView />} />
               {/*
-                The canvas's D1 nav carries Search and Routines. Neither is in
-                this build, and a link that silently redirects reads as a bug —
-                so they resolve to a page that says so.
+                `/` is the one mounted route outside an Employees root, so it is where the
+                default-mode sidebar can actually be seen. Everything else keeps the
+                Employees sidebar, which is the whole point of the mode swap.
               */}
               <Route
-                path="/search"
+                path={ROUTES.NEW_CHAT}
                 element={
-                  <NotBuiltYet
-                    title="Search"
-                    detail="Searching across every employee's threads is designed but not built yet. Hermes exposes /api/sessions/search, so it is a small addition."
-                  />
+                  <Page onOpenSidebar={openSidebar}>
+                    <ChatHomeView />
+                  </Page>
                 }
               />
               <Route
-                path="/routines"
+                path={ROUTES.EMPLOYEES}
                 element={
-                  <NotBuiltYet
-                    title="Routines"
-                    detail="A combined view of every employee's routines is not built yet. Each employee's own routines are in their panel — open a thread and use the screen button."
-                  />
+                  <Page title="Employees" onOpenSidebar={openSidebar}>
+                    <DashboardView />
+                  </Page>
                 }
               />
-              <Route path="*" element={<Navigate to="/employees" replace />} />
+              <Route
+                path={`${ROUTES.EMPLOYEES}/:profile`}
+                element={<EmployeeRoute onOpenSidebar={openSidebar} />}
+              />
+              <Route
+                path={ROUTES.MARKETPLACE}
+                element={
+                  <Page title="Marketplace" onOpenSidebar={openSidebar}>
+                    <MarketplaceView />
+                  </Page>
+                }
+              />
+
+              {/*
+                The rest of the canvas's nav. Some are this app's own, unbuilt surfaces;
+                the others belong to the surrounding product and arrive with the port.
+                Either way they are mounted rather than left to the catch-all — a nav row
+                that silently redirects reads as a bug, and `/customize` and `/integrations`
+                have to exist for the sidebar's mode stickiness to be exercisable at all.
+              */}
+              {UNBUILT_ROUTES.map(({ path, title, detail }) => (
+                <Route
+                  key={path}
+                  path={path}
+                  element={
+                    <Page title={title} onOpenSidebar={openSidebar}>
+                      <NotBuiltYet title={title} detail={detail} />
+                    </Page>
+                  }
+                />
+              ))}
+
+              <Route path="*" element={<Navigate to={ROUTES.NEW_CHAT} replace />} />
             </Routes>
           </Suspense>
         </main>
@@ -151,25 +155,86 @@ const Shell: FC = () => {
   )
 }
 
+/**
+ * Destinations the canvas's nav points at that this build does not serve.
+ *
+ * Each says which it is — designed-but-unbuilt here, or owned by the surrounding product —
+ * because "not built" and "not this app's job" are different answers to the same click.
+ */
+const UNBUILT_ROUTES: { path: string; title: string; detail: string }[] = [
+  {
+    path: ROUTES.SEARCH,
+    title: 'Search',
+    detail:
+      'Searching across every employee’s threads is designed but not built yet. Hermes exposes /api/sessions/search, so it is a small addition.',
+  },
+  {
+    path: ROUTES.ROUTINES,
+    title: 'Routines',
+    detail:
+      'A combined view of every employee’s routines is not built yet. Each employee’s own routines are in their panel — open a thread and use the screen button.',
+  },
+  {
+    path: ROUTES.SEARCH_CHATS,
+    title: 'Search Chats',
+    detail: 'Chat history belongs to the surrounding product and arrives with the port.',
+  },
+  {
+    path: ROUTES.SITES,
+    title: 'Sites',
+    detail:
+      'Sites is the surrounding product’s web builder. Its sidebar-mode mechanism is the one this app’s Employees mode mirrors.',
+  },
+  {
+    path: ROUTES.AI_TOOLS,
+    title: 'AI Tools',
+    detail: 'The tools catalogue belongs to the surrounding product and arrives with the port.',
+  },
+  {
+    path: ROUTES.CUSTOMIZE,
+    title: 'Customize',
+    detail:
+      'Customisation belongs to the surrounding product. It is mounted here because the Employees sidebar deliberately survives a hop onto it.',
+  },
+  {
+    path: ROUTES.INTEGRATIONS,
+    title: 'Integrations',
+    detail:
+      'Connectors belong to the surrounding product. Mounted here because the Employees sidebar deliberately survives a hop onto it.',
+  },
+  {
+    path: ROUTES.KNOWLEDGE,
+    title: 'Knowledge',
+    detail: 'The knowledge base belongs to the surrounding product and arrives with the port.',
+  },
+  {
+    path: ROUTES.SCHEDULED,
+    title: 'Scheduled',
+    detail: 'Dispatch belongs to the surrounding product and arrives with the port.',
+  },
+  {
+    path: ROUTES.MEETINGS,
+    title: 'Meetings',
+    detail: 'Meetings belong to the surrounding product and arrives with the port.',
+  },
+]
+
 const NotBuiltYet: FC<{ title: string; detail: string }> = ({ title, detail }) => (
-  <div className="flex flex-1 items-center justify-center p-8">
+  <div className="flex min-h-0 flex-1 items-center justify-center p-8">
     <div className="max-w-[420px] text-center">
-      <h1 className="text-heading-sm text-[rgb(var(--color-ink-7))]">{title}</h1>
-      <p className="mt-2 text-label-md text-[rgb(var(--color-ink-7)/0.5)]">{detail}</p>
+      <h1 className="text-heading-xs font-medium text-primary">{title}</h1>
+      <p className="mt-2 text-label-md text-tertiary">{detail}</p>
     </div>
   </div>
 )
 
-const CentredNote: FC<{ children: React.ReactNode; tone?: 'danger' }> = ({
-  children,
-  tone,
-}) => (
-  <div className="flex flex-1 items-center justify-center p-8">
+const CentredNote: FC<{ children: ReactNode; tone?: 'danger' }> = ({ children, tone }) => (
+  <div className="flex min-h-0 flex-1 items-center justify-center p-8">
     <p
       className={
         tone === 'danger'
-          ? 'text-label-md text-[rgb(var(--color-danger))]'
-          : 'text-label-md text-[rgb(var(--color-ink-7)/0.5)]'
+          ? 'text-label-md text-critical'
+          : 'text-label-md text-tertiary'
       }
     >
       {children}

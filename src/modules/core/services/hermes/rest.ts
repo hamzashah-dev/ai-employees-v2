@@ -4,6 +4,8 @@ import type {
   HermesCronJobsResponse,
   HermesProfile,
   HermesProfilesResponse,
+  HermesSearchHit,
+  HermesSearchResponse,
   HermesSessionRow,
   HermesSessionsResponse,
   HermesStatus,
@@ -184,4 +186,88 @@ export function triggerCronJob(jobId: string, profile: string): Promise<unknown>
     `/api/cron/jobs/${encodeURIComponent(jobId)}/trigger?profile=${encodeURIComponent(profile)}`,
     { method: 'POST' },
   )
+}
+
+/**
+ * Every routine across every employee, in one call.
+ *
+ * `profile=all` is the endpoint's own default, and it fans out over the profile
+ * list server-side, annotating each job with the profile that owns it. The
+ * routines table therefore costs one request rather than one per employee.
+ */
+export async function fetchAllCronJobs(): Promise<HermesCronJob[]> {
+  const data = await request<HermesCronJobsResponse | HermesCronJob[]>(
+    '/api/cron/jobs?profile=all',
+  )
+  if (Array.isArray(data)) return data
+  return data.jobs ?? []
+}
+
+export interface CronJobDraft {
+  /** What the employee is asked to do. Must stand on its own — cron runs it cold. */
+  prompt: string
+  /**
+   * Parsed by `parse_schedule`: a cron expression (`0 8 * * 1-5`), an interval
+   * (`every 30m`), a one-shot duration (`2h`) or an ISO timestamp. The editor
+   * only ever sends the first two.
+   */
+  schedule: string
+  name?: string
+  /**
+   * `local` saves the output without pushing it anywhere. It is the only target
+   * this app can honestly offer: the others are gateway platforms (Telegram,
+   * Slack…) that need a configured home channel, which is a Hermes-side setup
+   * step with no surface here.
+   */
+  deliver?: string
+}
+
+export function createCronJob(
+  draft: CronJobDraft,
+  profile: string,
+): Promise<HermesCronJob> {
+  return request<HermesCronJob>(
+    `/api/cron/jobs?profile=${encodeURIComponent(profile)}`,
+    { method: 'POST', body: JSON.stringify({ deliver: 'local', ...draft }) },
+  )
+}
+
+/** A partial edit. Hermes wraps the patch in `{updates}` rather than taking it bare. */
+export function updateCronJob(
+  jobId: string,
+  updates: Partial<CronJobDraft>,
+  profile: string,
+): Promise<HermesCronJob> {
+  return request<HermesCronJob>(
+    `/api/cron/jobs/${encodeURIComponent(jobId)}?profile=${encodeURIComponent(profile)}`,
+    { method: 'PUT', body: JSON.stringify({ updates }) },
+  )
+}
+
+export function deleteCronJob(jobId: string, profile: string): Promise<unknown> {
+  return request(
+    `/api/cron/jobs/${encodeURIComponent(jobId)}?profile=${encodeURIComponent(profile)}`,
+    { method: 'DELETE' },
+  )
+}
+
+// ------------------------------------------------------------------ search
+
+/**
+ * Full-text search over a profile's messages, backed by FTS5.
+ *
+ * Sessions live in a per-profile `state.db`, so this is one call per employee
+ * rather than one call for the roster — there is no cross-profile search route.
+ * An empty or whitespace query is answered `{results: []}` server-side; it is
+ * short-circuited here so an empty box costs nothing.
+ */
+export async function searchSessions(
+  query: string,
+  profile: string,
+  limit = 20,
+): Promise<HermesSearchHit[]> {
+  if (!query.trim()) return []
+  const params = new URLSearchParams({ q: query, profile, limit: String(limit) })
+  const data = await request<HermesSearchResponse>(`/api/sessions/search?${params}`)
+  return data.results ?? []
 }

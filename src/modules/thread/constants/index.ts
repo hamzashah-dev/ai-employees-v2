@@ -7,3 +7,11 @@ export const TIME_SEPARATOR_MS = 15 * 60 * 1000
  * not detach the view from a streaming reply.
  */
 export const NEAR_BOTTOM_PX = 80
+
+/**
+ * The signed-in person, for the top bar's avatar. There is no account endpoint
+ * in this build. `src/modules/roster/constants` carries the same literal for
+ * the sidebar footer; both belong in `core/constants` once that module is
+ * writable.
+ */
+

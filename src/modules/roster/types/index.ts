@@ -1,8 +1,13 @@
 import type { ComponentType } from 'react'
 
 export interface RosterSidebarProps {
-  /** Profile name of the employee whose thread is open, if any. */
-  activeProfile?: string
+  /**
+   * Whether the collapse control shrinks the sidebar to its icon rail. False inside the
+   * below-`desktop-sm` drawer, where the same control dismisses the drawer instead.
+   */
+  collapsible?: boolean
+  /** Closes the drawer. Only used when `collapsible` is false. */
+  onDismiss?: () => void
 }
 
 /**
@@ -23,15 +28,32 @@ export interface RosterEntry {
   activityMs: number
 }
 
-export interface RosterNavItem {
-  to: string
+interface RosterNavItemBase {
   label: string
   /** Icons take className only and inherit colour. */
   icon: ComponentType<{ className?: string }>
-  /**
-   * Match this path exactly. Set on Employees so an open thread lights up its
-   * roster row alone rather than two rows at once.
-   */
-  end?: boolean
   badge?: string
+  /**
+   * Opts the row into §4.1's live employee chip, which replaces `badge` while
+   * anything is running or waiting. Only rows that ask for it subscribe to the
+   * chat store, so the other nine pay nothing for it.
+   */
+  live?: boolean
 }
+
+/**
+ * A nav row is either a destination or an action, and the two are peers rather
+ * than one being a special case of the other: §4.2 is explicit that `Search` is
+ * "a **button**, not a link" because it opens a modal over wherever you are.
+ * `NavRow` narrows on `'to' in item`.
+ */
+export type RosterNavItem =
+  | (RosterNavItemBase & {
+      to: string
+      /**
+       * Match this path exactly. Set where a row would otherwise stay lit for
+       * every nested route beneath it.
+       */
+      end?: boolean
+    })
+  | (RosterNavItemBase & { onSelect: () => void })

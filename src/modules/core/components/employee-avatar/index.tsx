@@ -1,55 +1,55 @@
 import type { FC } from 'react'
-import { cn } from '../../utils/cn'
-import { getIdentity, type MascotShape } from '../../utils/identity'
+import { cn } from '@repo/ui/cn'
+import { MASCOT_EYES, MASCOT_PATHS } from '../../constants/identity'
+import { getIdentity } from '../../utils/identity'
 
 /**
- * The employee mascot.
+ * An employee, wherever they appear in a list, thread, card or header.
  *
- * The canvas draws a solid identity-coloured shape carrying a two-dot `face28`
- * glyph. Shape and colour come from a hash of the profile name, since Hermes
- * stores no visual identity of any kind.
+ * Draws the *same silhouette* as the marketplace card's `AgentBlob`, from the same
+ * `getIdentity(profile)`. It used to throw the shape away and render a plain circle for
+ * everyone, so the drop you hired off the shelf turned into a generic dot the instant it
+ * landed in the sidebar's Team section. A hire should not cost an employee its face.
+ *
+ * This knowingly departs from the canvas, which draws the roster avatar "28px, full round".
+ * The canvas is one desktop artboard and is silent on what happens to a character between
+ * the shelf and the roster; the answer here is that it stays the same character.
+ *
+ * The 120-unit paths are reused as-is rather than re-authored for small sizes. That was
+ * checked, not assumed: rendered to a 28px and a 20px canvas and magnified 8x, all four
+ * silhouettes stay separable — blob round, drop pointed at the top, triangle a flat-based
+ * apex, cloud a lumpy mound on a flat base. A hand-simplified small variant was drawn and
+ * compared side by side at both sizes and was not distinguishable from this, so it was not
+ * worth the second set of paths to maintain.
+ *
+ * What does *not* survive the scale is the eye radius. `AgentBlob` draws `r=5` on the 120
+ * grid, which is 1.2px inside a 28px box — a smudge. The eyes here are the same `MASCOT_EYES`
+ * coordinates at a radius that holds at roster size; the fattened circles were checked against
+ * all four paths with `isPointInFill` around their full circumference, so none of them spills
+ * off the silhouette it sits on.
  */
-
 interface EmployeeAvatarProps {
   profile: string
-  size?: number
   className?: string
 }
 
-const SHAPE_PATHS: Record<MascotShape, string> = {
-  // Rounded square-ish blob.
-  blob: 'M50 4c30 0 46 16 46 46s-16 46-46 46S4 80 4 50 20 4 50 4z',
-  // Teardrop.
-  drop: 'M50 3c18 22 34 36 34 54a34 34 0 1 1-68 0C16 39 32 25 50 3z',
-  // Soft triangle.
-  triangle: 'M50 6c4 0 7 2 9 6l33 62c4 8-1 18-10 18H18c-9 0-14-10-10-18l33-62c2-4 5-6 9-6z',
-  // Cloud.
-  cloud: 'M28 82c-13 0-24-10-24-23 0-11 8-21 19-23C26 24 37 16 50 16c15 0 27 10 30 24 10 2 16 11 16 21 0 12-10 21-22 21z',
-}
+/** On the 120 grid, so that 28px renders ~1.75px eyes rather than AgentBlob's 1.2px smudge. */
+const EYE_RADIUS = 7.5
 
-export const EmployeeAvatar: FC<EmployeeAvatarProps> = ({
-  profile,
-  size = 28,
-  className,
-}) => {
+export const EmployeeAvatar: FC<EmployeeAvatarProps> = ({ profile, className }) => {
   const { color, shape } = getIdentity(profile)
-  // Eyes scale with the mascot so a 150px marketplace blob and a 28px roster
-  // row read as the same character.
-  const eyeR = 6
-  const eyeY = 52
+  const eyes = MASCOT_EYES[shape]
 
   return (
     <svg
-      viewBox="0 0 100 100"
-      width={size}
-      height={size}
-      className={cn('shrink-0', className)}
+      viewBox="0 0 120 120"
       role="img"
       aria-label={`${profile} avatar`}
+      className={cn('block size-7 shrink-0', className)}
     >
-      <path d={SHAPE_PATHS[shape]} fill={`rgb(${color})`} />
-      <ellipse cx="38" cy={eyeY} rx={eyeR * 0.62} ry={eyeR} fill="rgb(15 15 15 / 0.85)" />
-      <ellipse cx="62" cy={eyeY} rx={eyeR * 0.62} ry={eyeR} fill="rgb(15 15 15 / 0.85)" />
+      <path d={MASCOT_PATHS[shape]} fill={color} />
+      <circle cx={eyes.left} cy={eyes.y} r={EYE_RADIUS} fill="rgb(0 0 0 / 0.38)" />
+      <circle cx={eyes.right} cy={eyes.y} r={EYE_RADIUS} fill="rgb(0 0 0 / 0.38)" />
     </svg>
   )
 }

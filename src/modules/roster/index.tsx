@@ -1,49 +1,48 @@
 import type { FC } from 'react'
+import { cn } from '@repo/ui/cn'
 import { BrandRow } from './components/brand-row'
-import { NavRow } from './components/nav-row'
-import { RosterList } from './components/roster-list'
+import { SidebarBody } from './components/sidebar-body'
 import { SidebarFooter } from './components/sidebar-footer'
-import { TeamHeading } from './components/team-heading'
-import { NAV_ITEMS, ROUTINES_ITEM } from './constants'
+import { WorkspaceSwitcher } from './components/workspace-switcher'
+import { SidebarCollapsedProvider } from './contexts/sidebar-collapsed'
+import { useSyncSidebarEmployeesMode } from './hooks/use-sync-sidebar-employees-mode'
+import { useSidebarCollapsedStore } from './stores/sidebar-collapsed-store'
 import type { RosterSidebarProps } from './types'
 
 /**
- * The left sidebar.
+ * The left sidebar: four pinned bands — brand row, workspace pill, body, footer. Only the
+ * body scrolls, and the body is swapped wholesale between the default and Employees modes.
  *
- * Geometry and treatment are ported from chatly-web's sidebar
- * (`modules/core/layouts/sidebar-layout/components/sidebar`): 16rem wide, rows
- * on a shared h-10 / rounded-xl / px-3 rhythm, hover and active states from the
- * same `fill-variant` tokens. Only the roster list scrolls; header, nav and
- * footer are pinned.
+ * 256px expanded, a 48px icon rail collapsed — the shipped
+ * `--sidebar-expanded-width` / `--sidebar-collapsed-width`. Inside the drawer it is always
+ * expanded: there is no room to collapse something that is already an overlay, and the same
+ * control dismisses it instead.
  */
-export const RosterSidebar: FC<RosterSidebarProps> = () => (
-  <aside className="flex h-full w-64 shrink-0 flex-col border-r border-[rgb(var(--color-border-subtle))] bg-[rgb(var(--color-canvas))]">
-    <BrandRow />
+export const RosterSidebar: FC<RosterSidebarProps> = ({ collapsible = true, onDismiss }) => {
+  useSyncSidebarEmployeesMode()
+  const storedCollapsed = useSidebarCollapsedStore((state) => state.isCollapsed)
+  const toggleCollapsed = useSidebarCollapsedStore((state) => state.toggleCollapsed)
 
-    <nav className="px-2 pt-1">
-      <ul className="flex flex-col gap-0.5">
-        {NAV_ITEMS.map((item) => (
-          <NavRow key={item.to} item={item} />
-        ))}
-      </ul>
-    </nav>
+  const isCollapsed = collapsible && storedCollapsed
 
-    <div className="mt-4 px-2">
-      <TeamHeading />
-    </div>
-
-    <div className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-2">
-      <RosterList />
-    </div>
-
-    <div className="px-2 pb-1">
-      <ul>
-        <NavRow item={ROUTINES_ITEM} />
-      </ul>
-    </div>
-
-    <SidebarFooter />
-  </aside>
-)
+  return (
+    <SidebarCollapsedProvider isCollapsed={isCollapsed}>
+      <aside
+        className={cn(
+          // `min-w-0` is load-bearing: a flex item's automatic minimum size would otherwise
+          // floor the rail at its rows' min-content width and the collapse would do nothing.
+          'flex h-full min-h-0 min-w-0 shrink-0 flex-col border-r border-primary bg-primary',
+          'transition-[width] duration-200 ease-linear',
+          isCollapsed ? 'w-12' : 'w-64',
+        )}
+      >
+        <BrandRow onToggle={collapsible ? toggleCollapsed : onDismiss} />
+        <WorkspaceSwitcher />
+        <SidebarBody />
+        <SidebarFooter />
+      </aside>
+    </SidebarCollapsedProvider>
+  )
+}
 
 export type { RosterSidebarProps }

@@ -4,7 +4,16 @@ import tseslint from 'typescript-eslint'
 import reactHooks from 'eslint-plugin-react-hooks'
 
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules', 'coverage'] },
+  {
+    /*
+     * `src/icons` and `src/repo-types` are byte-faithful mirrors of monorepo packages
+     * (see their READMEs). They lint upstream under a different config — @antfu style
+     * plus the Next plugin — so linting them here only produces drift pressure against
+     * files that must stay copyable. Same precedent as the monorepo excluding its
+     * generated `locales/`.
+     */
+    ignores: ['dist', 'node_modules', 'coverage', 'src/icons', 'src/repo-types'],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],
