@@ -107,7 +107,16 @@ function verifyBackend(): Plugin {
 export default defineConfig({
   plugins: [react(), tailwindcss(), hermesDevToken(), verifyBackend()],
   resolve: {
-    alias: { '@': path.resolve(import.meta.dirname, './src') },
+    /**
+     * `@repo/*` mirrors the monorepo package specifiers so that ported code imports
+     * exactly as it does in imagine-computer-web (`@repo/icons/search`). On the way back
+     * into the monorepo the real workspace packages take over and no import line changes.
+     */
+    alias: {
+      '@': path.resolve(import.meta.dirname, './src'),
+      '@repo/icons': path.resolve(import.meta.dirname, './src/icons'),
+      '@repo/types': path.resolve(import.meta.dirname, './src/repo-types'),
+    },
   },
   server: {
     port: 5190,
