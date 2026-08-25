@@ -1,6 +1,6 @@
 import type { FC } from 'react'
+import { cn } from '@repo/ui/cn'
 import type { ChatMessage } from '@/modules/core/types/chat'
-import { cn } from '@/modules/core/utils/cn'
 import { MessageError } from '../message-error'
 import { ToolCalls } from '../tool-calls'
 import { MarkdownBody } from './components/markdown-body'
@@ -19,9 +19,9 @@ import { MarkdownBody } from './components/markdown-body'
  * word wherever that word happens to be.
  */
 const STREAMING_CARET =
-  "[&>:last-child]:after:ml-1 [&>:last-child]:after:inline-block [&>:last-child]:after:h-[1em] " +
-  "[&>:last-child]:after:w-[2px] [&>:last-child]:after:animate-pulse " +
-  "[&>:last-child]:after:bg-[rgb(var(--color-ink-7))] [&>:last-child]:after:align-[-0.15em] " +
+  '[&>:last-child]:after:ml-1 [&>:last-child]:after:inline-block [&>:last-child]:after:h-[1em] ' +
+  '[&>:last-child]:after:w-[2px] [&>:last-child]:after:animate-pulse ' +
+  '[&>:last-child]:after:bg-fill-inverse [&>:last-child]:after:align-[-0.15em] ' +
   "[&>:last-child]:after:content-['']"
 
 interface EmployeeMessageProps {
@@ -36,13 +36,13 @@ export const EmployeeMessage: FC<EmployeeMessageProps> = ({ message }) => {
       {message.text ? (
         <MarkdownBody
           text={message.text}
-          className={cn(message.streaming && STREAMING_CARET)}
+          className={cn({ [STREAMING_CARET]: message.streaming })}
         />
       ) : (
         message.streaming && (
           // Nothing has arrived yet — the caret is the whole message.
           <span
-            className="inline-block h-[1em] w-[2px] animate-pulse bg-[rgb(var(--color-ink-7))]"
+            className="inline-block h-[1em] w-[2px] animate-pulse bg-fill-inverse"
             aria-hidden
           />
         )

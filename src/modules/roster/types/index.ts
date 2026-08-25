@@ -1,8 +1,13 @@
-import type { ComponentType } from 'react'
+import type { FC } from 'react'
+import type { PropsWithClassName } from '@repo/types/common'
 
 export interface RosterSidebarProps {
-  /** Profile name of the employee whose thread is open, if any. */
-  activeProfile?: string
+  /**
+   * Collapses the sidebar. Owned by the app shell rather than here, because the
+   * shell also owns the main column's offset and the below-`desktop-sm` drawer.
+   * Until it is wired the brand row's toggle renders disabled.
+   */
+  onToggleCollapse?: () => void
 }
 
 /**
@@ -26,11 +31,12 @@ export interface RosterEntry {
 export interface RosterNavItem {
   to: string
   label: string
-  /** Icons take className only and inherit colour. */
-  icon: ComponentType<{ className?: string }>
+  /** Icons take className only and inherit colour through `currentColor`. */
+  icon: FC<PropsWithClassName>
   /**
    * Match this path exactly. Set on Employees so an open thread lights up its
-   * roster row alone rather than two rows at once.
+   * roster row alone rather than two rows at once — which is what the design
+   * draws on D6.
    */
   end?: boolean
   badge?: string

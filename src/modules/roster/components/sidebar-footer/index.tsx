@@ -1,38 +1,25 @@
 import type { FC } from 'react'
-import { SettingsIcon } from '@/modules/core/components/icon'
+import { SettingsIcon } from '@repo/icons/settings'
+import { toInitials } from '@/modules/core/utils/identity'
 import { ACCOUNT_NAME, ACCOUNT_PLAN } from '../../constants'
 
-/** Initials for the account avatar: "Imagine User" -> "IU". */
-function initials(name: string): string {
-  const words = name.split(/\s+/).filter(Boolean)
-  if (words.length === 0) return '?'
-  if (words.length === 1) return (words[0] ?? '').slice(0, 2).toUpperCase()
-  return words
-    .slice(0, 2)
-    .map((w) => w[0] ?? '')
-    .join('')
-    .toUpperCase()
-}
-
 /**
- * The account row, matching chatly's footer: circular initials avatar, name
- * over plan, and a settings control on the right. Separated from the list by a
- * full-bleed hairline.
+ * The account row: initials avatar, name over plan, settings on the right,
+ * separated from the body by a full-bleed hairline.
+ *
+ * Name and plan are constants — Hermes has no identity or billing endpoint.
+ * Settings is disabled for the same reason: there is nothing behind it yet.
  */
 export const SidebarFooter: FC = () => (
-  <div className="border-t border-[rgb(var(--color-border-subtle))] p-2">
-    <div className="flex h-12 items-center gap-2 rounded-xl px-1">
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[rgb(var(--color-fill-secondary))] text-label-sm font-medium text-[rgb(var(--color-content-secondary))]">
-        {initials(ACCOUNT_NAME)}
+  <div className="shrink-0 border-t border-primary p-3">
+    <div className="flex items-center gap-2">
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-primary bg-fill-tertiary text-label-md font-medium text-primary">
+        {toInitials(ACCOUNT_NAME)}
       </span>
 
-      <span className="flex min-w-0 flex-col">
-        <span className="truncate text-label-md text-[rgb(var(--color-content-primary))]">
-          {ACCOUNT_NAME}
-        </span>
-        <span className="truncate text-label-sm text-[rgb(var(--color-content-primary)/0.5)]">
-          {ACCOUNT_PLAN}
-        </span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-label-md text-primary">{ACCOUNT_NAME}</span>
+        <span className="truncate text-label-xs text-tertiary">{ACCOUNT_PLAN}</span>
       </span>
 
       <button
@@ -40,9 +27,9 @@ export const SidebarFooter: FC = () => (
         aria-label="Settings"
         title="Settings are not available yet"
         disabled
-        className="ml-auto flex size-7 shrink-0 items-center justify-center rounded-xl text-[rgb(var(--color-content-primary)/0.5)] transition-colors hover:bg-[rgb(var(--color-fill-secondary))] disabled:pointer-events-none disabled:opacity-40"
+        className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-xl text-primary transition-all duration-200 ease-linear hover:bg-fill-secondary disabled:pointer-events-none disabled:opacity-60"
       >
-        <SettingsIcon className="size-4 stroke-[1.2px]" />
+        <SettingsIcon className="size-5" />
       </button>
     </div>
   </div>

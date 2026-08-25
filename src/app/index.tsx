@@ -108,7 +108,7 @@ const Shell: FC = () => {
   useHermesConnection()
 
   return (
-    <div className="flex h-screen flex-col bg-[rgb(var(--color-canvas))]">
+    <div className="flex h-screen flex-col bg-primary">
       <ConnectionBanner />
       <div className="flex min-h-0 flex-1">
         <RosterSidebar />
@@ -154,8 +154,8 @@ const Shell: FC = () => {
 const NotBuiltYet: FC<{ title: string; detail: string }> = ({ title, detail }) => (
   <div className="flex flex-1 items-center justify-center p-8">
     <div className="max-w-[420px] text-center">
-      <h1 className="text-heading-sm text-[rgb(var(--color-ink-7))]">{title}</h1>
-      <p className="mt-2 text-label-md text-[rgb(var(--color-ink-7)/0.5)]">{detail}</p>
+      <h1 className="text-heading-sm text-primary">{title}</h1>
+      <p className="mt-2 text-label-md text-tertiary">{detail}</p>
     </div>
   </div>
 )
@@ -168,8 +168,8 @@ const CentredNote: FC<{ children: React.ReactNode; tone?: 'danger' }> = ({
     <p
       className={
         tone === 'danger'
-          ? 'text-label-md text-[rgb(var(--color-danger))]'
-          : 'text-label-md text-[rgb(var(--color-ink-7)/0.5)]'
+          ? 'text-label-md text-critical'
+          : 'text-label-md text-tertiary'
       }
     >
       {children}

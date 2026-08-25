@@ -1,28 +1,35 @@
 import type { FC } from 'react'
 import { Link } from 'react-router-dom'
-import { CollapseIcon, LogoMarkIcon } from '@/modules/core/components/icon'
+import { LayoutSidebarLeftIcon } from '@repo/icons/layout-sidebar-left'
+import { SidebarImagineLogoWithText } from '@repo/icons/sidebar-imagine-logo-with-text'
+import { ROUTES } from '../../constants'
+
+interface BrandRowProps {
+  onToggleCollapse?: () => void
+}
 
 /**
- * The sidebar header, matching chatly's: logo mark and wordmark on the left,
- * with the collapse control appearing only on hover so the resting state stays
- * clean.
+ * The sidebar header: the 127x20 wordmark, and the collapse toggle on the right.
+ *
+ * The toggle is disabled until the app shell passes a handler — collapsing also
+ * moves the main column and swaps in a drawer below `desktop-sm`, so the state
+ * belongs there rather than here.
  */
-export const BrandRow: FC<{ onToggle?: () => void }> = ({ onToggle }) => (
-  <div className="group/header flex h-12 items-center justify-between px-3">
-    <Link to="/" className="flex items-center gap-2">
-      <LogoMarkIcon className="size-5 text-[rgb(var(--color-content-primary))]" />
-      <span className="text-label-lg font-medium text-[rgb(var(--color-content-primary))]">
-        Imagine
-      </span>
+export const BrandRow: FC<BrandRowProps> = ({ onToggleCollapse }) => (
+  <div className="flex shrink-0 items-center justify-between p-2">
+    <Link to={ROUTES.NEW_CHAT} aria-label="Imagine" className="p-[5px]">
+      <SidebarImagineLogoWithText className="h-5 w-[127px] shrink-0 text-primary" />
     </Link>
 
     <button
       type="button"
       aria-label="Toggle sidebar"
-      onClick={onToggle}
-      className="flex size-7 items-center justify-center rounded-xl text-[rgb(var(--color-content-primary)/0.5)] opacity-0 transition-opacity duration-200 group-hover/header:opacity-100 hover:bg-[rgb(var(--color-fill-secondary))] hover:text-[rgb(var(--color-content-primary))] focus-visible:opacity-100"
+      onClick={onToggleCollapse}
+      disabled={!onToggleCollapse}
+      title={onToggleCollapse ? undefined : 'Collapsing the sidebar is not available yet'}
+      className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-xl text-secondary transition-all duration-200 ease-linear hover:bg-fill-secondary hover:text-primary disabled:pointer-events-none disabled:opacity-60"
     >
-      <CollapseIcon className="size-4 stroke-[1.2px]" />
+      <LayoutSidebarLeftIcon className="size-4 stroke-[1.2px]" />
     </button>
   </div>
 )

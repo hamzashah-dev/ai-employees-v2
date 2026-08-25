@@ -1,5 +1,5 @@
 import type { FC } from 'react'
-import { Spinner } from '@/modules/core/components/status-pill'
+import { Spinner } from '@/modules/core/components/spinner'
 import type { ToolCall } from '@/modules/core/types/chat'
 
 interface ToolCallsProps {
@@ -22,7 +22,7 @@ export const ToolCalls: FC<ToolCallsProps> = ({ tools }) => {
   if (tools.length === 0) return null
 
   return (
-    <ul className="flex flex-col gap-1 text-[rgb(var(--color-ink-7)/0.5)]">
+    <ul className="flex flex-col gap-1 text-tertiary">
       {tools.map((tool) => (
         <li key={tool.id} className="flex items-center gap-2">
           {/* Fixed slot so names line up whether or not a spinner is showing. */}
@@ -31,9 +31,7 @@ export const ToolCalls: FC<ToolCallsProps> = ({ tools }) => {
           </span>
           <span className="font-mono text-label-sm">{tool.name}</span>
           {tool.status === 'done' && tool.durationSeconds !== undefined && (
-            <span className="font-mono text-label-sm">
-              {formatDuration(tool.durationSeconds)}
-            </span>
+            <span className="font-mono text-label-sm">{formatDuration(tool.durationSeconds)}</span>
           )}
         </li>
       ))}

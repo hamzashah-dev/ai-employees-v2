@@ -1,22 +1,23 @@
 import type { FC } from 'react'
 import { Link } from 'react-router-dom'
-import { PlusIcon } from '@/modules/core/components/icon'
+import { PlusIcon } from '@repo/icons/plus'
+import { ROUTES } from '../../constants'
 
 /**
- * A section label, matching chatly's "Projects" / "Recents" headings: sentence
- * case and tertiary, not uppercase and letter-spaced. The `+` opens the
- * marketplace, which is where hiring happens.
+ * The "Team" section label and its `+`.
+ *
+ * The `+` **is** hire — it opens the marketplace, matching the shipped Recents
+ * heading's `+` exactly (24x24, `rounded-xl`, tertiary, 16px glyph).
  */
 export const TeamHeading: FC = () => (
-  <div className="flex h-8 items-center justify-between px-3">
-    <h2 className="text-label-sm text-[rgb(var(--color-content-primary)/0.5)]">Team</h2>
+  <div className="flex shrink-0 items-center justify-between py-1 pr-3 pl-4">
+    <p className="line-clamp-1 text-label-md font-medium text-tertiary">Team</p>
     <Link
-      to="/marketplace"
-      aria-label="Hire"
-      title="Hire"
-      className="flex size-6 items-center justify-center rounded-lg text-[rgb(var(--color-content-primary)/0.5)] transition-colors hover:bg-[rgb(var(--color-fill-variant-hover))] hover:text-[rgb(var(--color-content-primary))]"
+      to={ROUTES.MARKETPLACE}
+      aria-label="Hire an employee"
+      className="flex size-6 items-center justify-center rounded-xl text-tertiary hover:bg-fill-secondary"
     >
-      <PlusIcon className="size-4 stroke-[1.2px]" />
+      <PlusIcon className="size-4" />
     </Link>
   </div>
 )

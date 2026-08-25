@@ -1,11 +1,14 @@
 import type { FC } from 'react'
-import { Button } from '@/modules/core/components/button'
+import { Button } from '@repo/ui/button'
 import { useChatStore } from '@/modules/core/stores/chat-store'
 import type { ApprovalRequest } from '@/modules/core/types/chat'
+import { WorkingPill } from '../working-pill'
 
 interface ApprovalCardProps {
   profile: string
   approval: ApprovalRequest
+  /** The employee is still mid-turn behind the question. */
+  working: boolean
 }
 
 /**
@@ -16,41 +19,38 @@ interface ApprovalCardProps {
  * than hidden, because a person who believes they approved a spend and did not
  * is worse off than one who knows the control is inert.
  */
-export const ApprovalCard: FC<ApprovalCardProps> = ({ profile, approval }) => {
+export const ApprovalCard: FC<ApprovalCardProps> = ({ profile, approval, working }) => {
   const dismiss = (): void => useChatStore.getState().clearApproval(profile)
 
   return (
     <section
       aria-label="Approval request"
-      className="rounded-[16px] bg-[rgb(var(--color-brand-deep))] p-4"
+      className="flex flex-col gap-2.5 rounded-2xl border border-primary bg-fill-elevated p-4"
     >
-      <p className="text-label-sm font-medium text-[rgb(var(--color-brand-soft))]">
-        Needs a yes
-      </p>
-
-      <p className="mt-2 text-body text-[rgb(var(--color-ink-7))]">{approval.summary}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-body-md text-primary">{approval.summary}</p>
+        {working && <WorkingPill />}
+      </div>
 
       {approval.detail && (
-        <p className="mt-2 font-mono text-label-sm break-words text-[rgb(var(--color-brand-soft))]">
-          {approval.detail}
-        </p>
+        <p className="font-mono text-label-sm break-words text-tertiary">{approval.detail}</p>
       )}
 
-      <div className="mt-4 flex items-center gap-2">
-        <Button variant="primary" size="md" onClick={dismiss}>
+      <div className="flex items-center gap-2">
+        <Button variant="primary" size="sm" onClick={dismiss} className="h-9 rounded-2xl px-4">
           Approve
         </Button>
         <Button
           variant="ghost"
-          size="md"
+          size="sm"
           onClick={dismiss}
-          className="text-[rgb(var(--color-brand-soft))] hover:bg-[rgb(var(--color-brand)/0.25)] hover:text-[rgb(var(--color-ink-7))]"
+          className="h-9 rounded-2xl px-4 text-secondary"
         >
           Not now
         </Button>
       </div>
 
-      <p className="mt-3 text-label-sm text-[rgb(var(--color-brand-soft)/0.7)]">
+      <p className="text-label-sm text-tertiary">
         Either answer only dismisses this card here — approvals are not sent back to the agent
         yet.
       </p>

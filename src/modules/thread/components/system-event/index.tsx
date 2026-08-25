@@ -6,5 +6,5 @@ interface SystemEventProps {
 
 /** Thread housekeeping — renames, archives. Centred, quiet, never a bubble. */
 export const SystemEvent: FC<SystemEventProps> = ({ text }) => (
-  <p className="text-center text-label-sm text-[rgb(var(--color-ink-7)/0.5)]">{text}</p>
+  <p className="text-center text-label-sm text-tertiary">{text}</p>
 )

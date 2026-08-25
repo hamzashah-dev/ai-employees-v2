@@ -1,6 +1,7 @@
 import type { FC } from 'react'
+import { cn } from '@repo/ui/cn'
 import { useChatStore } from '@/modules/core/stores/chat-store'
-import { Spinner } from '@/modules/core/components/status-pill'
+import { Spinner } from '@/modules/core/components/spinner'
 import { getSessionToken, isGatedAuthMode } from '@/modules/core/services/hermes/config'
 
 /**
@@ -48,9 +49,9 @@ export const ConnectionBanner: FC = () => {
 }
 
 const TONES = {
-  muted: 'bg-[rgb(var(--color-ink-2))] text-[rgb(var(--color-ink-6))]',
-  warning: 'bg-[rgb(var(--color-warning-bg))] text-[rgb(var(--color-warning))]',
-  danger: 'bg-[rgb(var(--color-danger)/0.12)] text-[rgb(var(--color-danger))]',
+  muted: 'bg-fill-elevated text-secondary',
+  warning: 'bg-surface-warning text-warning',
+  danger: 'bg-surface-critical text-critical',
 } as const
 
 const Banner: FC<{ tone: keyof typeof TONES; children: React.ReactNode }> = ({
@@ -59,7 +60,10 @@ const Banner: FC<{ tone: keyof typeof TONES; children: React.ReactNode }> = ({
 }) => (
   <div
     role="status"
-    className={`flex items-center justify-center gap-2 px-4 py-1.5 text-label-sm ${TONES[tone]}`}
+    className={cn(
+      'flex items-center justify-center gap-2 px-4 py-1.5 text-label-sm',
+      TONES[tone],
+    )}
   >
     {children}
   </div>
