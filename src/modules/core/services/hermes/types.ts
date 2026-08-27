@@ -475,3 +475,74 @@ export interface HermesStatus {
   gateway_running?: boolean
   overall?: string
 }
+
+/**
+ * One MCP server, as `/api/mcp/servers` reports it.
+ *
+ * These are the app's honest answer to chatly-web's "connectors": an MCP server
+ * is exactly what a connector is there — an outside system the agent can reach.
+ * `tools` is the allow-list of tool names, or `null` meaning every tool the
+ * server exposes.
+ */
+export interface HermesMcpServer {
+  name: string
+  transport: 'http' | 'stdio' | 'unknown'
+  url?: string | null
+  command?: string | null
+  args?: string[]
+  auth?: string | null
+  enabled: boolean
+  tools?: string[] | null
+}
+
+export interface HermesMcpServersResponse {
+  servers?: HermesMcpServer[]
+}
+
+/**
+ * One entry from `GET /api/files` — `_managed_file_entry` in `computer_cli/web_server.py`.
+ *
+ * `mtime` is epoch **seconds** as a float (`Path.stat().st_mtime`), not milliseconds, which
+ * is why every read of it goes through `toDate`. `size` and `mime_type` are both null for a
+ * directory.
+ */
+export interface HermesManagedFile {
+  name: string
+  path: string
+  is_directory: boolean
+  size: number | null
+  mtime: number
+  mime_type: string | null
+}
+
+/**
+ * The listing itself.
+ *
+ * `root`/`locked_root` are non-null only where the operator pinned the managed-files root
+ * (`COMPUTER_DASHBOARD_FILES_ROOT`, or a hosted `/opt/data` layout); on a local install the
+ * endpoint will happily browse the whole home directory, which is why this app always names
+ * an absolute path rather than relying on the default.
+ */
+export interface HermesFileListing {
+  path: string
+  parent: string | null
+  entries?: HermesManagedFile[]
+  root: string | null
+  locked_root: string | null
+  can_change_path: boolean
+}
+
+/** `GET /api/files/read` — the whole file, base64 in a data URL, capped at 100MB server-side. */
+export interface HermesFileContent {
+  name: string
+  path: string
+  size: number
+  mime_type: string
+  data_url: string
+}
+
+export interface HermesTranscription {
+  ok?: boolean
+  transcript?: string
+  provider?: string | null
+}

@@ -1,5 +1,6 @@
 import type { HermesProfile, HermesSessionRow } from '@/modules/core/services/hermes/types'
-import { toDisplayName } from '@/modules/core/utils/identity'
+import type { IdentityOverride } from '@/modules/core/types/identity'
+import { identityKey, toDisplayName } from '@/modules/core/utils/identity'
 import { toDate } from '@/modules/core/utils/time'
 
 /**
@@ -20,7 +21,9 @@ export interface EmployeeMatch {
 /**
  * Matches the slug and the display name both, because they read differently:
  * `GET /api/profiles` returns `expense-manager`, the row shows `Expense Manager`,
- * and someone typing "expense m" means the second.
+ * and someone typing "expense m" means the second. A user rename is a third name
+ * for the same employee, so `overrides` feeds the same two-way match — searching
+ * for either what Hermes calls it or what you called it has to find it.
  *
  * Ranked by where the match falls — a name that *starts* with the query is what
  * the user is reaching for; a mid-word hit is a coincidence. Recency deliberately
@@ -31,6 +34,7 @@ export function matchEmployees(
   profiles: HermesProfile[],
   query: string,
   activity: Map<string, number> = new Map(),
+  overrides: Record<string, IdentityOverride> = {},
 ): EmployeeMatch[] {
   const needle = query.trim().toLowerCase()
   if (!needle) return []
@@ -38,7 +42,7 @@ export function matchEmployees(
   return profiles
     .map((profile) => ({
       profile: profile.name,
-      displayName: toDisplayName(profile.name),
+      displayName: toDisplayName(profile.name, overrides[identityKey(profile.name)]),
       activityMs: activity.get(profile.name) ?? 0,
     }))
     .filter((match) => rank(match, needle) < NO_MATCH)

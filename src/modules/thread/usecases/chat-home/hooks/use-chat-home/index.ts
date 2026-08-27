@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useChatStore } from '@/modules/core/stores/chat-store'
 import { fetchProfiles } from '@/modules/core/services/hermes/rest'
-import { toDisplayName } from '@/modules/core/utils/identity'
+import { useDisplayName } from '@/modules/core/hooks/use-identity'
 
 /** Hermes ships a profile literally named `default`; prefer it when it is there. */
 const DEFAULT_PROFILE = 'default'
@@ -24,6 +24,10 @@ export const useChatHome = () => {
   const names = profiles?.map((profile) => profile.name) ?? []
   const target = names.includes(DEFAULT_PROFILE) ? DEFAULT_PROFILE : names[0]
 
+  // `useDisplayName` must run on every render, so it is given the empty string rather
+  // than being called conditionally when a target exists.
+  const targetName = useDisplayName(target ?? '')
+
   const connection = useChatStore((state) => state.connection)
   const working = useChatStore((state) =>
     target ? state.threads[target]?.status === 'working' : false,
@@ -31,7 +35,7 @@ export const useChatHome = () => {
 
   return {
     target,
-    displayName: target ? toDisplayName(target) : '',
+    displayName: target ? targetName : '',
     connection,
     working,
     isPending,

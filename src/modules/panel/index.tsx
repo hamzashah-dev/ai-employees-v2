@@ -3,7 +3,7 @@ import { cn } from '@repo/ui/cn'
 import { Sheet, SheetContent, SheetTitle } from '@repo/ui/sheet'
 import { VisuallyHidden } from '@repo/ui/visually-hidden'
 import { useIsLaptop } from '@/modules/core/hooks/media-query'
-import { toDisplayName } from '@/modules/core/utils/identity'
+import { useDisplayName } from '@/modules/core/hooks/use-identity'
 import { EmployeeSummary } from './components/employee-summary'
 import { PanelHeader } from './components/panel-header'
 import { ResizeHandle } from './components/resize-handle'
@@ -47,7 +47,7 @@ export const EmployeePanel: FC<EmployeePanelProps> = ({ profile, onClose }) => {
   // the frame's focus listener is not re-bound on every render.
   const toggleMaximize = useCallback(() => setIsMaximized((on) => !on), [])
   const { view, backLabel, back, openEditor } = usePanelView(onClose)
-  const displayName = toDisplayName(profile)
+  const displayName = useDisplayName(profile)
 
   const body = (
     <>

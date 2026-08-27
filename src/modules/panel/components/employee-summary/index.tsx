@@ -1,8 +1,8 @@
 import type { FC, ReactNode } from 'react'
 import { Skeleton } from '@repo/ui/skeleton'
 import { EmployeeAvatar } from '@/modules/core/components/employee-avatar'
-import { toDisplayName } from '@/modules/core/utils/identity'
-import { useEmployeeProfile } from '../../hooks/use-employee-profile'
+import { useDisplayName } from '@/modules/core/hooks/use-identity'
+import { useEmployeeProfile } from '@/modules/core/hooks/use-employee-profile'
 
 interface EmployeeSummaryProps {
   profile: string
@@ -17,6 +17,7 @@ interface EmployeeSummaryProps {
  */
 export const EmployeeSummary: FC<EmployeeSummaryProps> = ({ profile }) => {
   const { data, isPending, isError } = useEmployeeProfile(profile)
+  const displayName = useDisplayName(profile)
 
   return (
     <section
@@ -26,7 +27,7 @@ export const EmployeeSummary: FC<EmployeeSummaryProps> = ({ profile }) => {
       <EmployeeAvatar profile={profile} className="size-10" />
       <div className="min-w-0 flex-1 space-y-1.5">
         <h2 className="truncate text-label-md font-medium text-primary">
-          {toDisplayName(profile)}
+          {displayName}
         </h2>
         <Details
           isPending={isPending}

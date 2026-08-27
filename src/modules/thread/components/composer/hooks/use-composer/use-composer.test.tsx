@@ -1,6 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { TooltipProvider } from '@radix-ui/react-tooltip'
+import type { ReactNode } from 'react'
 import type { ConnectionState } from '@/modules/core/services/hermes/gateway'
 
 /**
@@ -21,8 +24,21 @@ vi.mock('@/modules/core/hooks/use-hermes', () => ({
 
 const { Composer } = await import('../../index')
 
+/**
+ * The integrations dropdown queries `/api/mcp/servers` and wraps its trigger in
+ * a tooltip, so the composer now needs both providers above it — Radix throws
+ * outright without the tooltip one. The query is left to fail; nothing here
+ * asserts on it.
+ */
+const wrap = (ui: ReactNode) =>
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <TooltipProvider>{ui}</TooltipProvider>
+    </QueryClientProvider>,
+  )
+
 function renderComposer(profile = 'inbox-manager', connection: ConnectionState = 'open') {
-  return render(
+  return wrap(
     <Composer
       profile={profile}
       displayName="Inbox Manager"
@@ -74,13 +90,19 @@ describe('useComposer', () => {
     await userEvent.type(screen.getByLabelText('Message Inbox Manager'), 'half a thought')
 
     rerender(
-      <Composer
-        profile="sales-outbound"
-        displayName="Sales Outbound"
-        working={false}
-        connection="open"
-        columnClassName="w-[768px]"
-      />,
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <TooltipProvider>
+          <Composer
+            profile="sales-outbound"
+            displayName="Sales Outbound"
+            working={false}
+            connection="open"
+            columnClassName="w-[768px]"
+          />
+        </TooltipProvider>
+      </QueryClientProvider>,
     )
 
     expect(screen.getByLabelText('Message Sales Outbound')).toHaveValue('')

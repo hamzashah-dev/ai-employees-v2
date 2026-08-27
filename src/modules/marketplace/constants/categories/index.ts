@@ -13,7 +13,7 @@ import { ShieldCheckIcon } from '@repo/icons/shield-check'
 import { TelescopeIcon } from '@repo/icons/telescope-icon'
 import { TerminalIcon } from '@repo/icons/terminal-icon'
 import { ToolBoxIcon } from '@repo/icons/tool-box'
-import { IDENTITY_COLORS } from '@/modules/core/constants/identity'
+import { IDENTITY_COLOR_BY_NAME } from '@/modules/core/constants/identity'
 
 /**
  * The marketplace's shelf order.
@@ -84,7 +84,20 @@ export interface CategoryStyle {
   color: string
 }
 
-const [BLUE, CYAN, YELLOW, PURPLE, GREEN, RED] = IDENTITY_COLORS
+/*
+ * Named rather than destructured by position. The shelf borrows the employee palette so a
+ * category chip and an avatar cannot disagree about what "blue" is, but it wants six
+ * specific hues out of the eleven — picking them by index would make the palette's order
+ * load-bearing for a file that has nothing to do with it.
+ */
+const {
+  sky: BLUE,
+  sea: CYAN,
+  amber: YELLOW,
+  grape: PURPLE,
+  leaf: GREEN,
+  cherry: RED,
+} = IDENTITY_COLOR_BY_NAME
 
 export const CATEGORY_STYLES: Record<AgentCategory, CategoryStyle> = {
   Personal: { Icon: PeopleIcon, color: BLUE },

@@ -12,7 +12,7 @@ import {
 } from '@repo/ui/table'
 import { EmployeeAvatar } from '@/modules/core/components/employee-avatar'
 import type { HermesCronJob } from '@/modules/core/services/hermes/types'
-import { toDisplayName } from '@/modules/core/utils/identity'
+import { useDisplayName } from '@/modules/core/hooks/use-identity'
 import { ROUTES } from '@/modules/roster/constants'
 import { formatCadence } from '../../utils/format-cadence'
 import { formatRelativeTime } from '../../utils/relative-time'
@@ -63,6 +63,8 @@ export const RoutinesTable: FC<{ jobs: HermesCronJob[] }> = ({ jobs }) => (
 
 const Row: FC<{ job: HermesCronJob }> = ({ job }) => {
   const profile = routineProfile(job)
+  // `profile` is empty for an unattributable record; the hook still has to run.
+  const displayName = useDisplayName(profile)
   const status = routineStatus(job)
   const paused = status === 'paused'
   const failed = job.last_status === 'error'
@@ -81,7 +83,7 @@ const Row: FC<{ job: HermesCronJob }> = ({ job }) => {
             className="flex items-center gap-2.5 rounded-lg text-label-md text-inherit hover:text-primary"
           >
             <EmployeeAvatar profile={profile} className="size-7 shrink-0" />
-            <span className="truncate">{toDisplayName(profile)}</span>
+            <span className="truncate">{displayName}</span>
           </Link>
         ) : (
           // `profile` is injected by the dashboard's `all` listing; a record

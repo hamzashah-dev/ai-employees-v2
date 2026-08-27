@@ -1,57 +1,71 @@
-/**
- * The six employee hues, taken from the design canvas.
- *
- * These are decorative brand hues rather than semantic roles — an avatar's colour carries
- * no meaning — so they are a local constant rather than `--color-*` tokens. Four of the six
- * land on existing ramp steps and are referenced as such; cyan and purple have no step in
- * this app's ramps (its `primary` ramp is Chatly blue) so they carry the canvas value.
- *
- * Deliberately excludes the status greens/ambers/reds *as status* — `success-50` and
- * `error-50` appear here as identity hues, so nothing may infer state from an avatar.
- */
-export const IDENTITY_COLORS = [
-  'rgb(var(--primary-60))', //  #0088FF
-  'rgb(0 199 234)', //          #00C7EA — no ramp step
-  'rgb(var(--warning-30))', //  #F1C21B
-  'rgb(138 63 252)', //         #8A3FFC — Imagine purple, no ramp step
-  'rgb(var(--success-50))', //  #24A148
-  'rgb(var(--error-50))', //    #FA4D56
-] as const
+import {
+  BOT_COLORS,
+  BOT_COLOR_BY_NAME,
+  BOT_SHAPES,
+  BOT_SHAPE_LABELS,
+  DEFAULT_BOT_COLOR,
+} from '../../components/bot-avatar/constants'
+import type { BotColorName, BotShape, HexColor } from '../../components/bot-avatar/types'
 
 /**
- * The four mascot silhouettes — design-original assets whose names map to the canvas's
- * `blob-a`…`blob-d` symbols.
+ * The employee palette and shape set — one vocabulary, drawn two ways.
  *
- * The canvas draws these only on marketplace cards and a plain circle everywhere else. We
- * draw them at both scales instead: an employee that is a drop on the shelf has to still be
- * a drop in the sidebar's Team section, or the character does not survive being hired.
+ * This used to be six canvas hues and four flat silhouettes. It is now the bot's own
+ * eleven hues and eight shapes, because the avatar is the bot: `BotAvatar` renders it in 3D
+ * at hero size and `BotGlyph` renders the same shape, hue and face flat at roster size. A
+ * second vocabulary alongside it would mean an employee whose identity changed depending on
+ * which component was looking at it.
+ *
+ * The hues are raw hexes rather than `rgb(var(--…))` tokens, and that is not the banned
+ * thing: they never reach a `className`. They are an SVG `fill` and a `MeshStandardMaterial`
+ * colour, and a material takes a colour, not a CSS custom property it cannot resolve. There
+ * is also no token to borrow — the ramps describe surfaces and text, and an avatar hue is
+ * decorative and carries no semantic role. Nothing may infer state from an avatar's colour.
  */
-export type MascotShape = 'blob' | 'drop' | 'triangle' | 'cloud'
-
-export const MASCOT_SHAPES: readonly MascotShape[] = [
-  'blob',
-  'drop',
-  'triangle',
-  'cloud',
-]
-
-/** `blob-a`…`blob-d`, on the canvas's 120×120 grid. */
-export const MASCOT_PATHS: Record<MascotShape, string> = {
-  blob: 'M60 8c28 0 48 18 48 46 0 30-16 58-48 58S12 84 12 54C12 26 32 8 60 8Z',
-  drop: 'M60 6C78 28 104 44 104 72c0 26-20 42-44 42S16 98 16 72C16 44 42 28 60 6Z',
-  cloud:
-    'M34 108C18 108 8 96 8 82c0-12 8-22 19-25C29 40 43 26 60 26s31 14 33 31c11 3 19 13 19 25 0 14-10 26-26 26H34Z',
-  triangle:
-    'M60 10c6 0 10 4 14 11l34 58c6 11-1 25-14 25H26c-13 0-20-14-14-25l34-58c4-7 8-11 14-11Z',
-}
+export const IDENTITY_COLORS: readonly HexColor[] = BOT_COLORS.map((color) => color.hex)
 
 /**
- * Eye placement per silhouette, from the canvas. Each blob sits its eyes at a different
- * height because the shapes have their mass in different places.
+ * What to call each hue where a swatch has to have an accessible name.
+ *
+ * Positional, so it stays in step with `IDENTITY_COLORS` by construction rather than by
+ * discipline. A colour picker whose options are eleven unlabelled circles is unusable
+ * without sight, and the hues are decorative so there is no role to borrow a word from.
  */
-export const MASCOT_EYES: Record<MascotShape, { left: number; right: number; y: number }> = {
-  blob: { left: 46, right: 74, y: 56 },
-  drop: { left: 47, right: 73, y: 72 },
-  cloud: { left: 47, right: 73, y: 70 },
-  triangle: { left: 48, right: 72, y: 76 },
-}
+export const IDENTITY_COLOR_NAMES: readonly string[] = BOT_COLORS.map((color) => color.label)
+
+/**
+ * The same hues, by name.
+ *
+ * Anything that wants a *particular* colour rather than "the one this employee hashed to"
+ * asks for it here. Reaching into `IDENTITY_COLORS` by position would make the palette's
+ * order load-bearing, and appending a hue would silently repaint half the marketplace.
+ */
+export const IDENTITY_COLOR_BY_NAME: Record<BotColorName, HexColor> = Object.fromEntries(
+  BOT_COLORS.map((color) => [color.name, color.hex]),
+) as Record<BotColorName, HexColor>
+
+/** The hue an unresolvable index falls back to, so a stale override cannot blank an avatar. */
+export const DEFAULT_IDENTITY_COLOR: HexColor = BOT_COLOR_BY_NAME[DEFAULT_BOT_COLOR].hex
+
+/**
+ * The eight silhouettes.
+ *
+ * Kept under the `Mascot*` names the rest of the app already calls them by — the bot *is*
+ * the mascot, and renaming every call site would be churn for a synonym.
+ */
+export type MascotShape = BotShape
+
+export const MASCOT_SHAPES: readonly MascotShape[] = BOT_SHAPES
+
+export const MASCOT_SHAPE_NAMES: Record<MascotShape, string> = BOT_SHAPE_LABELS
+
+/**
+ * Is this one of the shapes we still draw?
+ *
+ * Overrides are persisted in `localStorage`, so a browser that saw the four-silhouette
+ * vocabulary can hand back a `triangle` that no longer exists. Falling through to the
+ * name-derived shape is better than rendering nothing, and better than silently rewriting
+ * the user's stored choice.
+ */
+export const isMascotShape = (value: unknown): value is MascotShape =>
+  typeof value === 'string' && (MASCOT_SHAPES as readonly string[]).includes(value)

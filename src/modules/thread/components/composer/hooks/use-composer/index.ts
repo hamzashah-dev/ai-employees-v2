@@ -28,6 +28,8 @@ export interface UseComposerResult {
   note: string | null
   noteId: string
   canSend: boolean
+  /** Appends to the draft rather than replacing it — used by dictation. */
+  insertText: (text: string) => void
   fileInput: RefObject<HTMLInputElement | null>
   attaching: boolean
   attachError?: string
@@ -79,9 +81,16 @@ export function useComposer(profile: string, connection: ConnectionState): UseCo
     setValue((current) => (current.trim() ? `${current.trimEnd()} ${ref} ` : `${ref} `))
   }
 
+  const insertText = (text: string): void => {
+    const addition = text.trim()
+    if (!addition) return
+    setValue((current) => (current.trim() ? `${current.trimEnd()} ${addition}` : addition))
+  }
+
   return {
     value,
     setValue,
+    insertText,
     offline,
     note,
     noteId,

@@ -161,5 +161,14 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     css: false,
+    /*
+     * The marketplace suites render the whole catalog and take ~4s alone —
+     * comfortably under Vitest's 5s default in isolation, but over it once the
+     * full run has several jsdom environments competing for the same cores.
+     * That produced four failures that passed the moment they were run on their
+     * own, which reads as flakiness rather than the resource contention it is.
+     */
+    testTimeout: 20_000,
+    hookTimeout: 20_000,
   },
 } as Parameters<typeof defineConfig>[0])

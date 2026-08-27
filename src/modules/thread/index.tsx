@@ -1,5 +1,5 @@
 import type { FC } from 'react'
-import { toDisplayName } from '@/modules/core/utils/identity'
+import { useDisplayName } from '@/modules/core/hooks/use-identity'
 import { Composer } from './components/composer'
 import { MessageList } from './components/message-list'
 import { ThreadHeader } from './components/thread-header'
@@ -27,7 +27,7 @@ export const ThreadView: FC<ThreadViewProps> = ({
   onOpenSidebar,
 }) => {
   const { thread, connection } = useThread(profile)
-  const displayName = toDisplayName(profile)
+  const displayName = useDisplayName(profile)
   const working = thread?.status === 'working'
 
   const columnClassName = panelOpen ? 'w-[600px] max-w-[90%]' : 'w-[768px] max-w-full'

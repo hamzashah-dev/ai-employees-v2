@@ -25,6 +25,5 @@ export const PANEL_WIDTH_STEP = 8
 /** Per-device preference, not synced state — the same reasoning as identity overrides. */
 export const PANEL_WIDTH_STORAGE_KEY = 'employees:panel-width'
 
-/** Query keys. `['cron', profile]` is invalidated by every routine mutation. */
+/** Query key. `['cron', profile]` is invalidated by every routine mutation. */
 export const ROUTINES_QUERY_KEY = 'cron'
-export const PROFILES_QUERY_KEY = 'profiles'

@@ -1,6 +1,6 @@
 import { Fragment, type FC } from 'react'
 import { EmployeeAvatar } from '@/modules/core/components/employee-avatar'
-import { toDisplayName } from '@/modules/core/utils/identity'
+import { useDisplayName } from '@/modules/core/hooks/use-identity'
 import { highlight } from '../../utils/highlight'
 import type { SearchRow } from '../../hooks/use-employee-search'
 
@@ -23,29 +23,33 @@ interface ResultRowProps {
  * says so rather than implying the row jumps to the message. Wiring it properly
  * needs a thread route that takes a session id and a resume path for it.
  */
-export const ResultRow: FC<ResultRowProps> = ({ row, query, onSelect }) => (
-  <button
-    type="button"
-    onClick={() => onSelect(row.profile)}
-    aria-label={`Open ${toDisplayName(row.profile)}’s thread`}
-    className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors duration-200 ease-linear hover:bg-fill-variant-hover focus-visible:bg-fill-variant-hover focus-visible:outline-none"
-  >
-    <EmployeeAvatar profile={row.profile} className="size-7" />
+export const ResultRow: FC<ResultRowProps> = ({ row, query, onSelect }) => {
+  const displayName = useDisplayName(row.profile)
 
-    <span className="min-w-0 flex-1 truncate text-label-md text-secondary">
-      {highlight(row.text, query).map((segment, index) => (
-        <Fragment key={index}>
-          {segment.match ? (
-            <span className="text-primary">{segment.text}</span>
-          ) : (
-            segment.text
-          )}
-        </Fragment>
-      ))}
-    </span>
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(row.profile)}
+      aria-label={`Open ${displayName}’s thread`}
+      className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors duration-200 ease-linear hover:bg-fill-variant-hover focus-visible:bg-fill-variant-hover focus-visible:outline-none"
+    >
+      <EmployeeAvatar profile={row.profile} className="size-7" />
 
-    {row.timeLabel && (
-      <span className="shrink-0 text-label-xs text-tertiary">{row.timeLabel}</span>
-    )}
-  </button>
-)
+      <span className="min-w-0 flex-1 truncate text-label-md text-secondary">
+        {highlight(row.text, query).map((segment, index) => (
+          <Fragment key={index}>
+            {segment.match ? (
+              <span className="text-primary">{segment.text}</span>
+            ) : (
+              segment.text
+            )}
+          </Fragment>
+        ))}
+      </span>
+
+      {row.timeLabel && (
+        <span className="shrink-0 text-label-xs text-tertiary">{row.timeLabel}</span>
+      )}
+    </button>
+  )
+}

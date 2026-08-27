@@ -1,14 +1,21 @@
 import type { FC } from 'react'
 import TextareaAutosize from 'react-textarea-autosize'
-import { ArrowUpIcon } from '@repo/icons/arrow-up'
-import { DropdownIcon } from '@repo/icons/dropdown-icon'
-import { PlusIcon } from '@repo/icons/plus'
-import { StopIcon } from '@repo/icons/stop'
-import { Button } from '@repo/ui/button'
 import { cn } from '@repo/ui/cn'
-import { Spinner } from '@/modules/core/components/spinner'
 import type { ConnectionState } from '@/modules/core/services/hermes/gateway'
+import { Actions } from './components/actions'
+import { AudioWaveform } from './components/audio-waveform'
+import { ConnectorsDropdown } from './components/connectors-dropdown'
+import { MoreDropdown } from './components/more-dropdown'
+import {
+  DOCK_CLASS,
+  DOCK_END_CLASS,
+  DOCK_START_CLASS,
+  EDITOR_CLASS,
+  EDITOR_WRAPPER_CLASS,
+  PROMPT_BOX_CLASS,
+} from './constants'
 import { useComposer } from './hooks/use-composer'
+import { useSpeechToText } from './hooks/use-speech-to-text'
 
 interface ComposerProps {
   profile: string
@@ -21,6 +28,22 @@ interface ComposerProps {
   placeholder?: string
 }
 
+/**
+ * The prompt box, a port of chatly-web's
+ * `modules/core/components/prompt-box`.
+ *
+ * The chrome is upstream's to the class: the same container, the same dock, the
+ * same `+` menu, the same microphone-becomes-send tail. Three things upstream
+ * carries are deliberately absent — the plan ("Pro") dropdown, the model pill
+ * and the chat/image/video mode pill. The first is not a concept Hermes has;
+ * the other two would each be a picker over a choice this app cannot make: the
+ * model is fixed by the employee's profile, and there is one mode.
+ *
+ * The editor is a textarea rather than upstream's TipTap. Nothing in this app
+ * needs rich text, slash commands or command nodes, and the six-package
+ * dependency they cost buys nothing here — so the *look* is ported and the
+ * mechanism is not.
+ */
 export const Composer: FC<ComposerProps> = ({
   profile,
   displayName,
@@ -32,6 +55,7 @@ export const Composer: FC<ComposerProps> = ({
   const {
     value,
     setValue,
+    insertText,
     offline,
     note,
     noteId,
@@ -46,91 +70,75 @@ export const Composer: FC<ComposerProps> = ({
     onStop,
   } = useComposer(profile, connection)
 
+  const recorder = useSpeechToText({ onTranscript: insertText })
+  const transcribing = recorder.isRecording || recorder.isProcessing
+
+  const label = placeholder ?? `Message ${displayName}`
+
   return (
     <div className="flex shrink-0 justify-center p-6">
       <form onSubmit={onSubmit} className={cn('flex flex-col', columnClassName)}>
-        <div className="flex min-h-[120px] flex-col justify-between rounded-3xl border border-primary bg-fill-elevated p-4">
-          <TextareaAutosize
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            onKeyDown={onKeyDown}
-            minRows={1}
-            maxRows={10}
-            disabled={offline}
-            placeholder={placeholder ?? `Message ${displayName}`}
-            aria-label={placeholder ?? `Message ${displayName}`}
-            aria-describedby={note ? noteId : undefined}
-            className="scrollbar-minimal w-full resize-none bg-transparent text-body-md text-primary outline-none placeholder:text-tertiary disabled:text-disabled disabled:placeholder:text-tertiary-disabled"
-          />
-
-          <div className="mt-3 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <input ref={fileInput} type="file" className="hidden" onChange={onPickFile} />
-              <Button
-                type="button"
-                variant="icon-outline"
-                size="icon-sm"
-                shape="pill"
-                aria-label="Attach file"
-                disabled={offline || attaching}
-                onClick={() => fileInput.current?.click()}
-                className="text-secondary [&>svg]:size-4"
-              >
-                {attaching ? <Spinner /> : <PlusIcon />}
-              </Button>
-
-              {/*
-                Model and quality are read-outs, not pickers: the model is fixed
-                by the Hermes profile and there is no quality knob behind it. The
-                canvas draws both as plain divs, and a control that does nothing
-                would be worse than one that plainly does not move.
-              */}
-              <span
-                title="The model is set by this employee's profile"
-                className="flex h-8 items-center gap-1.5 rounded-2xl border border-secondary px-3 text-label-md text-secondary"
-              >
-                Auto
-                <DropdownIcon className="size-2" />
-              </span>
+        <div className={PROMPT_BOX_CLASS} data-prompt-box>
+          {recorder.isRecording ? (
+            <AudioWaveform time={recorder.time} levels={recorder.levels} />
+          ) : (
+            <div className={EDITOR_WRAPPER_CLASS}>
+              <TextareaAutosize
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+                onKeyDown={onKeyDown}
+                minRows={1}
+                maxRows={10}
+                disabled={offline || recorder.isProcessing}
+                placeholder={label}
+                aria-label={label}
+                aria-describedby={note ? noteId : undefined}
+                className={EDITOR_CLASS}
+              />
             </div>
+          )}
 
-            <div className="flex items-center gap-4">
-              <span
-                title="Quality follows the model set by this employee's profile"
-                className="flex items-center gap-1.5 text-label-md text-secondary"
-              >
-                High quality
-                <DropdownIcon className="size-2" />
-              </span>
+          <div className={DOCK_CLASS}>
+            {/* Upstream hides the head of the dock while dictating, so the
+                waveform and the cancel/confirm pair get the full width. */}
+            {!transcribing && (
+              <div className={DOCK_START_CLASS}>
+                <input ref={fileInput} type="file" className="hidden" onChange={onPickFile} />
+                <MoreDropdown
+                  openFilePicker={() => fileInput.current?.click()}
+                  disabled={offline}
+                  attaching={attaching}
+                />
+                <ConnectorsDropdown profile={profile} />
+              </div>
+            )}
 
-              {working ? (
-                <Button
-                  type="button"
-                  variant="icon-primary"
-                  size="icon-sm"
-                  shape="pill"
-                  aria-label={`Stop ${displayName}`}
-                  onClick={onStop}
-                  className="[&>svg]:size-4"
-                >
-                  <StopIcon />
-                </Button>
-              ) : (
-                <Button
-                  type="submit"
-                  variant="icon-primary"
-                  size="icon-sm"
-                  shape="pill"
-                  aria-label="Send message"
-                  disabled={!canSend}
-                  className="[&>svg]:size-4"
-                >
-                  <ArrowUpIcon />
-                </Button>
-              )}
+            <div className={DOCK_END_CLASS}>
+              <Actions
+                working={working}
+                displayName={displayName}
+                canSend={canSend}
+                onStop={onStop}
+                isRecording={recorder.isRecording}
+                isProcessing={recorder.isProcessing}
+                canDictate={!offline}
+                onStartRecording={recorder.start}
+                onStopRecording={recorder.stop}
+                onCancelRecording={recorder.cancel}
+                isEmpty={value.trim().length === 0}
+              />
             </div>
           </div>
         </div>
+
+        {recorder.error && (
+          <p role="alert" className="mt-2 text-center text-label-sm text-critical">
+            {recorder.error}{' '}
+            <button type="button" onClick={recorder.clearError} className="cursor-pointer underline">
+              Dismiss
+            </button>
+          </p>
+        )}
 
         {attachError && (
           <p role="alert" className="mt-2 text-center text-label-sm text-critical">

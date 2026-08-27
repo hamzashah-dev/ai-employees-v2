@@ -6,6 +6,7 @@ import {
   fetchSidebarSessions,
   searchSessions,
 } from '@/modules/core/services/hermes/rest'
+import { useIdentityStore } from '@/modules/core/stores/identity-store'
 import { useSearchStore } from '@/modules/core/stores/search-store'
 import { formatRosterTime } from '@/modules/core/utils/time'
 import { lastActivityByProfile, matchEmployees } from '../../utils/match-employees'
@@ -101,6 +102,9 @@ export function useEmployeeSearch(): UseEmployeeSearchResult {
     placeholderData: keepPreviousData,
   })
 
+  /** A rename is searchable the moment it is made; see `stores/identity-store`. */
+  const overrides = useIdentityStore((state) => state.overrides)
+
   const activity = useMemo(
     () => (sessions.data ? lastActivityByProfile(sessions.data) : new Map<string, number>()),
     [sessions.data],
@@ -108,13 +112,13 @@ export function useEmployeeSearch(): UseEmployeeSearchResult {
 
   const employees = useMemo<SearchRow[]>(
     () =>
-      matchEmployees(profiles.data ?? [], query, activity).map((match) => ({
+      matchEmployees(profiles.data ?? [], query, activity, overrides).map((match) => ({
         key: match.profile,
         profile: match.profile,
         text: match.displayName,
         timeLabel: match.activityMs > 0 ? formatRosterTime(match.activityMs) : '',
       })),
-    [profiles.data, query, activity],
+    [profiles.data, query, activity, overrides],
   )
 
   // `placeholderData` deliberately holds the previous result across a keystroke,

@@ -1,8 +1,10 @@
 import { useCallback, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchProfiles, fetchSidebarSessions } from '@/modules/core/services/hermes/rest'
+import { useIdentityStore } from '@/modules/core/stores/identity-store'
 import type { HermesProfile, HermesSessionRow } from '@/modules/core/services/hermes/types'
-import { toDisplayName } from '@/modules/core/utils/identity'
+import type { IdentityOverride } from '@/modules/core/types/identity'
+import { identityKey, toDisplayName } from '@/modules/core/utils/identity'
 import { formatRosterTime, toDate } from '@/modules/core/utils/time'
 import { SESSIONS_REFETCH_MS } from '../../constants'
 import type { RosterEntry } from '../../types'
@@ -42,9 +44,16 @@ export function useRoster(): UseRosterResult {
     void refetchSessions()
   }, [refetchProfiles, refetchSessions])
 
+  /*
+   * A rename is local presentation state (see `stores/identity-store`), but it has to
+   * reach the sidebar on the same commit as the edit — and it reorders the list too,
+   * because ties are broken alphabetically on the *displayed* name.
+   */
+  const overrides = useIdentityStore((state) => state.overrides)
+
   const entries = useMemo(
-    () => buildEntries(profiles.data ?? [], sessions.data),
-    [profiles.data, sessions.data],
+    () => buildEntries(profiles.data ?? [], sessions.data, overrides),
+    [profiles.data, sessions.data, overrides],
   )
 
   return {
@@ -74,6 +83,7 @@ function firstText(...values: (string | null | undefined)[]): string {
 function buildEntries(
   profiles: HermesProfile[],
   sessions: SidebarSessions | undefined,
+  overrides: Record<string, IdentityOverride>,
 ): RosterEntry[] {
   const latest = new Map<string, { row: HermesSessionRow; ms: number }>()
 
@@ -99,7 +109,7 @@ function buildEntries(
 
       return {
         profile: profile.name,
-        displayName: toDisplayName(profile.name),
+        displayName: toDisplayName(profile.name, overrides[identityKey(profile.name)]),
         subtitle: firstText(
           match?.row.preview,
           match?.row.title,

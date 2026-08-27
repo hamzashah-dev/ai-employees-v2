@@ -2,13 +2,19 @@ import { API_BASE, authHeaders } from './config'
 import type {
   HermesCronJob,
   HermesCronJobsResponse,
+  HermesFileContent,
+  HermesFileListing,
+  HermesManagedFile,
   HermesProfile,
   HermesProfilesResponse,
+  HermesMcpServer,
+  HermesMcpServersResponse,
   HermesSearchHit,
   HermesSearchResponse,
   HermesSessionRow,
   HermesSessionsResponse,
   HermesStatus,
+  HermesTranscription,
 } from './types'
 
 export class HermesHttpError extends Error {
@@ -291,4 +297,92 @@ export async function searchSessions(
   const params = new URLSearchParams({ q: query, profile, limit: String(limit) })
   const data = await request<HermesSearchResponse>(`/api/sessions/search?${params}`)
   return data.results ?? []
+}
+
+// ------------------------------------------------------------ integrations
+
+/**
+ * The MCP servers this employee can reach.
+ *
+ * Scoped by profile for the same reason sessions are: `_profile_scope` reads
+ * the named profile's `config.yaml`, and omitting the name silently reports the
+ * launch profile's servers instead of this employee's.
+ */
+export async function fetchMcpServers(profile: string): Promise<HermesMcpServer[]> {
+  const data = await request<HermesMcpServersResponse>(
+    `/api/mcp/servers?profile=${encodeURIComponent(profile)}`,
+  )
+  return data.servers ?? []
+}
+
+/**
+ * Flip a server's `enabled` flag.
+ *
+ * Hermes reads that flag when a session starts, so the change lands on the next
+ * turn rather than the current one — the dropdown says so rather than implying
+ * an instant effect.
+ */
+export function setMcpServerEnabled(
+  name: string,
+  enabled: boolean,
+  profile: string,
+): Promise<unknown> {
+  return request(
+    `/api/mcp/servers/${encodeURIComponent(name)}/enabled?profile=${encodeURIComponent(profile)}`,
+    { method: 'PUT', body: JSON.stringify({ enabled, profile }) },
+  )
+}
+
+// ------------------------------------------------------------------- files
+
+/**
+ * A directory listing from the managed-files API.
+ *
+ * **`/api/files` takes no `profile` parameter at all.** `list_managed_files` is
+ * `(request, path)` — nothing else — and FastAPI silently drops the extra query key, so a
+ * hopeful `?profile=ad-creator` returns the *operating-system home directory* with a 200
+ * and no hint that the scoping was ignored. This was checked against the running backend,
+ * not assumed. Scoping is therefore the caller's job: pass an absolute `path`, and get it
+ * from `GET /api/profiles` (`HermesProfile.path`), which is the only place Hermes says
+ * where an employee lives on disk.
+ *
+ * The server sorts directories-then-name; anything wanting recency has to re-sort on
+ * `mtime` itself.
+ */
+export async function fetchFiles(path: string): Promise<HermesManagedFile[]> {
+  const data = await request<HermesFileListing>(
+    `/api/files?path=${encodeURIComponent(path)}`,
+  )
+  return data.entries ?? []
+}
+
+/**
+ * One file's bytes, as a `data:` URL.
+ *
+ * Answers 413 above 100MB and 403 for anything `_is_sensitive_path` rejects (`.env`,
+ * `auth.json`, and every path under `pairing/` or `mcp-tokens/`) — so a file visible in a
+ * listing is always readable, because the listing applies the same filter.
+ */
+export function fetchFileContent(path: string): Promise<HermesFileContent> {
+  return request<HermesFileContent>(`/api/files/read?path=${encodeURIComponent(path)}`)
+}
+
+// ------------------------------------------------------------------- audio
+
+/**
+ * Transcribe a recording made in the browser.
+ *
+ * The endpoint takes a base64 data URL rather than multipart, and answers a
+ * *successful* empty transcript for silence — the caller should treat `''` as
+ * "nothing was said", not as a failure.
+ */
+export async function transcribeAudio(
+  dataUrl: string,
+  mimeType: string,
+): Promise<string> {
+  const data = await request<HermesTranscription>('/api/audio/transcribe', {
+    method: 'POST',
+    body: JSON.stringify({ data_url: dataUrl, mime_type: mimeType }),
+  })
+  return (data.transcript ?? '').trim()
 }
