@@ -54,21 +54,29 @@ const MAIN_BARS = [
  * overrides when it maximizes. `h-*` stays in the base so a `className` height
  * merges over it rather than fighting it.
  */
-/*
- * The frame's own height comes from its ASPECT RATIO, not a fixed pixel value.
- *
- * noVNC scales the remote framebuffer to fit while preserving its aspect ratio,
- * and paints whatever is left over in its own grey. The remote display is
- * 1920x1080 (VNC_RESOLUTION), so any frame that is not 16:9 shows grey bars down
- * the sides or under the page — which reads as "the screen does not fill the
- * box" when nothing is actually wrong. `aspect-video` IS 16/9, so the scaled
- * remote lands exactly on the frame's edges and there is nothing left to paint.
- *
- * Tied to VNC_RESOLUTION by arithmetic, not coincidence: change the container's
- * resolution to something that is not 16:9 and this has to change with it.
- */
 const BOX =
-  'flex aspect-video w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-primary bg-fill transition-all duration-200 ease-linear'
+  'flex w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-primary bg-fill transition-all duration-200 ease-linear'
+
+/*
+ * 16/9 belongs to the IFRAME, not to the card around it.
+ *
+ * noVNC scales the framebuffer to fit its page and paints the remainder in its
+ * own grey (#494949). The remote display is 1920x1080, so the frame has to be
+ * 16:9 for the scaled screen to land exactly on its edges — measured directly:
+ * at a 1280x720 viewport the canvas renders 1280x720 at 0,0, filling it with
+ * nothing left over.
+ *
+ * The subtlety, and the reason a first attempt at this still showed grey: this
+ * card is a flex COLUMN holding the frame *and* the caption strip beneath it.
+ * Putting `aspect-video` on the card makes the card 16:9, which leaves the
+ * iframe 16:9-minus-the-caption — wider than the framebuffer, so noVNC fits to
+ * height and pads the sides. The ratio has to sit on the element the iframe
+ * actually fills.
+ *
+ * Tied to VNC_RESOLUTION by arithmetic, not coincidence: a container that is not
+ * 1920x1080 needs this changed with it.
+ */
+const STAGE = 'relative flex aspect-video w-full shrink-0 overflow-hidden'
 
 interface BrowserFrameProps {
   /** noVNC page URL, or null when we have no live view. */
@@ -116,7 +124,7 @@ export const BrowserFrame: FC<BrowserFrameProps> = ({
 
   return (
     <div className={cn(BOX, className)}>
-      <div className="relative flex min-h-0 flex-1 overflow-hidden">
+      <div className={STAGE}>
         <iframe
           // No `sandbox`: noVNC is scripts and a WebSocket, so a sandbox without
           // `allow-scripts allow-same-origin` would guarantee the blank frame this
@@ -124,7 +132,7 @@ export const BrowserFrame: FC<BrowserFrameProps> = ({
           // took. The page is our own container, reached over the local network.
           title="Live view of the browser"
           src={liveUrl}
-          className="min-h-0 w-full flex-1 border-0"
+          className="h-full w-full border-0"
         />
 
         {/*
