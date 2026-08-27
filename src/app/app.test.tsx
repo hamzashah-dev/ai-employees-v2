@@ -1,6 +1,9 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { HermesProfile } from '@/modules/core/services/hermes/types'
+import { useChatStore } from '@/modules/core/stores/chat-store'
+import type { EmployeeStatus, ToolCallStatus } from '@/modules/core/types/chat'
 
 /**
  * Mount smoke tests.
@@ -95,10 +98,72 @@ function jsonResponse(body: unknown): Response {
   })
 }
 
+/**
+ * jsdom has no `matchMedia`, and with none `useIsLaptop` is false — which is the
+ * one state where the drawer deliberately does NOT open itself (below `laptop`
+ * it is a full-screen sheet, and opening it uninvited would take the
+ * conversation off the screen mid-turn). So a desktop has to be stated, or the
+ * auto-open tests below would pass for the wrong reason.
+ */
+function stubDesktop(): void {
+  vi.stubGlobal(
+    'matchMedia',
+    (query: string) =>
+      ({
+        matches: true,
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }) as unknown as MediaQueryList,
+  )
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+    },
+  )
+}
+
+/**
+ * Put one browser tool call on the open turn, the way the store's `tool.start`
+ * and `tool.complete` reducers leave it.
+ */
+function browserTurn(
+  profile: string,
+  call: { name: string; status: ToolCallStatus },
+  status: EmployeeStatus = 'working',
+): void {
+  act(() => {
+    useChatStore.setState({
+      threads: {
+        [profile]: {
+          profile,
+          hydrated: true,
+          status,
+          messages: [
+            {
+              id: 'm1',
+              role: 'assistant',
+              text: '',
+              createdAt: 0,
+              thinkingBlocks: [],
+              segments: [],
+              toolCalls: { t1: { id: 't1', name: call.name, status: call.status } },
+            },
+          ],
+        },
+      },
+    } as never)
+  })
+}
+
 describe('App', () => {
   beforeEach(() => {
     window.history.pushState({}, '', '/')
     localStorage.clear()
+    useChatStore.setState({ threads: {} } as never)
   })
 
   afterEach(() => {
@@ -178,5 +243,82 @@ describe('App', () => {
     // Both the sidebar and the main pane say so; either is the point.
     const prompts = await screen.findAllByText(/no employees yet|hire/i)
     expect(prompts.length).toBeGreaterThan(0)
+  })
+  /**
+   * The drawer is where the live browser and the login ask live, so the agent
+   * reaching for a browser has to bring it on screen by itself — the founder
+   * should not have to know to open a panel to answer a sign-in.
+   */
+  it('opens the drawer by itself when the agent starts browsing', async () => {
+    stubDesktop()
+    window.history.pushState({}, '', '/employees/ad-creator')
+    vi.stubGlobal('fetch', stubFetch([profile('ad-creator')]))
+
+    render(<App />)
+    await screen.findByRole('button', { name: /open panel|details/i }).catch(() => null)
+    expect(screen.queryByRole('complementary', { name: /details/i })).not.toBeInTheDocument()
+
+    browserTurn('ad-creator', { name: 'browser_navigate', status: 'running' })
+
+    expect(
+      await screen.findByRole('complementary', { name: /details/i }),
+    ).toBeInTheDocument()
+  })
+
+  /**
+   * And having brought it up uninvited, it must lose the argument when the user
+   * closes it.
+   *
+   * The shape here is the one that matters and the one a naive latch fails:
+   * the first call COMPLETES before the next starts. "Find me clients on
+   * LinkedIn" is dozens of such calls, and a latch re-armed on the gap between
+   * them re-opens the drawer dozens of times over the user closing it.
+   */
+  it('stays closed for the rest of the turn once the user closes it', async () => {
+    stubDesktop()
+    window.history.pushState({}, '', '/employees/ad-creator')
+    vi.stubGlobal('fetch', stubFetch([profile('ad-creator')]))
+
+    render(<App />)
+    browserTurn('ad-creator', { name: 'browser_navigate', status: 'running' })
+
+    const panel = await screen.findByRole('complementary', { name: /details/i })
+    expect(panel).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Close panel' }))
+    await waitFor(() =>
+      expect(screen.queryByRole('complementary', { name: /details/i })).not.toBeInTheDocument(),
+    )
+
+    // The gap: that call is done, the turn is not over.
+    browserTurn('ad-creator', { name: 'browser_navigate', status: 'done' })
+    // ...and the agent reaches for the browser again.
+    browserTurn('ad-creator', { name: 'browser_click', status: 'running' })
+
+    await waitFor(() => {})
+    expect(screen.queryByRole('complementary', { name: /details/i })).not.toBeInTheDocument()
+  })
+
+  /** The next task is a fresh argument, though. */
+  it('opens itself again on the next turn', async () => {
+    stubDesktop()
+    window.history.pushState({}, '', '/employees/ad-creator')
+    vi.stubGlobal('fetch', stubFetch([profile('ad-creator')]))
+
+    render(<App />)
+    browserTurn('ad-creator', { name: 'browser_navigate', status: 'running' })
+    await screen.findByRole('complementary', { name: /details/i })
+    await userEvent.click(screen.getByRole('button', { name: 'Close panel' }))
+    await waitFor(() =>
+      expect(screen.queryByRole('complementary', { name: /details/i })).not.toBeInTheDocument(),
+    )
+
+    // Turn ends -> the latch re-arms.
+    browserTurn('ad-creator', { name: 'browser_navigate', status: 'done' }, 'ready')
+    browserTurn('ad-creator', { name: 'browser_navigate', status: 'running' })
+
+    expect(
+      await screen.findByRole('complementary', { name: /details/i }),
+    ).toBeInTheDocument()
   })
 })

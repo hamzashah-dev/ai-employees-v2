@@ -80,11 +80,15 @@ export const HERMES_EVENTS = [
   'notification.clear',
   // Blocking requests. The gateway's `_block()` helper emits one of these and
   // then *parks the whole agent thread* until the matching `<name>.respond` RPC
-  // arrives or the wait expires — 300s for clarify/secret, 120s for sudo, 30s
-  // for terminal.read. Nothing answers them today, so an agent asking a
-  // clarifying question reads as a hang. On expiry the gateway emits the
-  // `.expire` twin so a late responder gets a clean signal instead of a raw
-  // JSON-RPC "no pending request" error.
+  // arrives or the wait expires. The clarify wait is NOT 300s: it comes from
+  // `get_clarify_timeout()` (tools/clarify_gateway.py), which defaults to 3600s,
+  // is configurable via `agent.clarify_timeout`, and means *never expire* when
+  // set to 0 or less — the gateway then passes `None` to `_block()` and waits
+  // forever. There is therefore no deadline a client may render. On expiry the
+  // gateway emits the `.expire` twin so a late responder gets a clean signal
+  // instead of a raw JSON-RPC "no pending request" error. `clarify.request` is
+  // answered (see `SessionManager.answerClarify`); `secret.request` and
+  // `sudo.request` still have nobody answering them, so those read as a hang.
   'clarify.request',
   'clarify.expire',
   'secret.request',
@@ -223,6 +227,19 @@ export interface NotificationClearPayload {
 export interface ClarifyRequestPayload {
   request_id?: string
   question?: string
+  choices?: string[]
+}
+
+/**
+ * A `clarify.request` after validation — the agent has stopped and is waiting on
+ * a human. Carries no deadline on purpose: the wait is 3600s by default,
+ * configurable, and unlimited when `agent.clarify_timeout <= 0`, so any
+ * countdown a client drew would be fiction. `clarify.expire` is the only
+ * truthful end-of-wait signal.
+ */
+export interface ClarifyRequest {
+  requestId: string
+  question: string
   choices?: string[]
 }
 

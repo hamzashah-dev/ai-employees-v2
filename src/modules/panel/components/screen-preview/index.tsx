@@ -1,69 +1,53 @@
 import type { FC } from 'react'
 import type { PropsWithClassName } from '@repo/types/common'
-import { CursorIcon } from '@repo/icons/cursor-icon'
-import { cn } from '@repo/ui/cn'
+import { useBrowserView } from '../../hooks/use-browser-view'
+import { BrowserFrame } from '../browser-frame'
+import { LoginRequest } from '../login-request'
+
+interface ScreenPreviewProps extends PropsWithClassName {
+  profile: string
+  /** True while the drawer is maximized over the conversation. */
+  isExpanded?: boolean
+  /** Maximizes the drawer over the conversation, and restores it. */
+  onToggleExpand?: () => void
+}
 
 /**
- * A drawing of the employee's screen — deliberately static.
+ * What we can show of the employee's screen, and what we cannot.
  *
- * The canvas paints a skeleton here rather than a feed because there is no
- * screen stream to show: Hermes exposes no such endpoint, so anything moving
- * would be invented. It stays a drawing until there is a real feed to render,
- * which is why nothing here is wired to data.
+ * This used to be a static drawing with a comment saying there was no stream to
+ * show. Half of that is still true — see `useBrowserView` for why `liveUrl` is
+ * `null` today — so the drawing survives as `BrowserFrame`'s empty state rather
+ * than being deleted. What is new is that the two things the app *does* know are
+ * now rendered: whether the agent is driving a browser this turn, and whether it
+ * has stopped to ask a human for something.
  *
- * `#3D3D3D` is `border-tertiary` in the design. This token layer only reaches
- * that neutral as a *fill* through the elevated ramp's active step, hence
- * `bg-fill-elevated-active` on the traffic lights.
+ * A fragment rather than a wrapper: the panel's body is already a
+ * `flex flex-col gap-2` column, so both children sit in it directly and
+ * `className` keeps meaning exactly what it did — the frame's height. Wrapping
+ * them would put a second flex context between the two and buy nothing.
+ *
+ * The request goes *above* the frame: it is the thing that has stopped, and the
+ * frame beneath it is where you would do something about it.
  */
+export const ScreenPreview: FC<ScreenPreviewProps> = ({
+  profile,
+  className,
+  isExpanded,
+  onToggleExpand,
+}) => {
+  const { liveUrl, agentBrowsing, clarify, answer } = useBrowserView(profile)
 
-/** [width, fill] per bar, exactly as the canvas lays them out. */
-const RAIL_BARS = [
-  ['w-[70%]', 'bg-fill-elevated-hover'],
-  ['w-[90%]', 'bg-fill-elevated'],
-  ['w-[60%]', 'bg-fill-elevated'],
-  ['w-[80%]', 'bg-fill-elevated'],
-  ['w-[65%]', 'bg-fill-elevated'],
-] as const
-
-const MAIN_BARS = [
-  ['w-[90%]', 'bg-fill-elevated'],
-  ['w-[85%]', 'bg-fill-elevated'],
-  ['w-[70%]', 'bg-fill-elevated-hover'],
-  ['w-[88%]', 'bg-fill-elevated'],
-  ['w-[62%]', 'bg-fill-elevated'],
-  ['w-[75%]', 'bg-fill-elevated-hover'],
-] as const
-
-/** `className` carries the maximized height; the drawing itself does not change. */
-export const ScreenPreview: FC<PropsWithClassName> = ({ className }) => (
-  <div
-    aria-hidden
-    className={cn(
-      'relative h-[280px] w-full shrink-0 overflow-hidden rounded-2xl border border-primary bg-fill',
-      className,
-    )}
-  >
-    <div className="flex h-6 items-center gap-1 bg-fill-elevated px-2.5">
-      <span className="size-[5px] rounded-full bg-fill-elevated-active" />
-      <span className="size-[5px] rounded-full bg-fill-elevated-active" />
-      <span className="size-[5px] rounded-full bg-fill-elevated-active" />
-      <span className="ml-2 h-2.5 w-[40%] rounded-[5px] bg-fill-elevated-hover" />
-    </div>
-
-    <div className="flex h-full">
-      <div className="flex w-[90px] flex-col gap-2 border-r border-primary p-2.5">
-        {RAIL_BARS.map(([width, fill]) => (
-          <span key={width} className={cn('h-1.5 rounded-[3px]', width, fill)} />
-        ))}
-      </div>
-      <div className="flex flex-1 flex-col gap-2.5 p-3">
-        <span className="h-2 w-[45%] rounded-[4px] bg-fill-elevated-hover" />
-        {MAIN_BARS.map(([width, fill]) => (
-          <span key={width} className={cn('h-1.5 rounded-[3px]', width, fill)} />
-        ))}
-      </div>
-    </div>
-
-    <CursorIcon className="absolute left-[58%] top-[52%] size-4 text-primary" />
-  </div>
-)
+  return (
+    <>
+      {clarify && <LoginRequest request={clarify} onAnswer={answer} />}
+      <BrowserFrame
+        liveUrl={liveUrl}
+        agentBrowsing={agentBrowsing}
+        className={className}
+        isExpanded={isExpanded}
+        onToggleExpand={onToggleExpand}
+      />
+    </>
+  )
+}
