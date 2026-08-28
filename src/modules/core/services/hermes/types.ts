@@ -369,6 +369,30 @@ export interface HermesProfilesResponse {
   profiles: HermesProfile[]
 }
 
+/** One env var an installed agent still needs — from the pack's manifest. */
+export interface HermesEnvRequirement {
+  name: string
+  description: string
+  required?: boolean
+  default?: string
+}
+
+/** `POST /api/profiles/install` — see `installProfile` in rest.ts. */
+export interface HermesProfileInstallResult {
+  ok: boolean
+  name: string
+  path: string
+  version: string
+  description: string
+  /** Where the pack came from, recorded so `profile update` can re-pull it. */
+  source: string
+  /** True when this overwrote an existing profile rather than creating one. */
+  updated: boolean
+  /** False if bundled-skill seeding failed; the profile is still installed. */
+  skills_seeded: boolean
+  env_requires: HermesEnvRequirement[]
+}
+
 /**
  * A row as Hermes actually returns it (~48 columns straight off `state.db`);
  * only the fields this app reads are declared.
