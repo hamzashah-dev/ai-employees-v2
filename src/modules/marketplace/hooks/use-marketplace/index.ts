@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { CATALOG, type CatalogAgent } from '../../constants/catalog'
+import { AVAILABLE_CATALOG, type CatalogAgent } from '../../constants/catalog'
 import {
   AGENT_CATEGORIES,
   CATEGORY_SUBTITLES,
@@ -78,7 +78,7 @@ export function useMarketplace(): Marketplace {
   const grouped = maker === DEFAULT_MAKER && category === 'All'
 
   const { results, shelves } = useMemo(() => {
-    const matches = sortAgents(filterAgents(CATALOG, { query: search, category, maker }), sort)
+    const matches = sortAgents(filterAgents(AVAILABLE_CATALOG, { query: search, category, maker }), sort)
 
     return {
       results: matches,
@@ -101,7 +101,7 @@ export function useMarketplace(): Marketplace {
     search,
     blurb: category === 'All' ? undefined : CATEGORY_SUBTITLES[category],
     matched: results.length,
-    total: CATALOG.length,
+    total: AVAILABLE_CATALOG.length,
     results,
     shelves,
     grouped,

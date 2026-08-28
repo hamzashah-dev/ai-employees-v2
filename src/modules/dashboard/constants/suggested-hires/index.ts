@@ -9,7 +9,9 @@
  * up there instead.
  *
  * Every field is copied verbatim from the catalog entry of the same id, so the
- * day the promotion happens the cards do not change. All three are §6 names.
+ * day the promotion happens the cards do not change. All three are ids in
+ * `AVAILABLE_AGENT_IDS` — suggesting a gated-out agent would send the user to a
+ * detail page that cannot resolve it.
  */
 export interface SuggestedHire {
   /** Catalog id, which is also the Hermes profile slug Install would create. */
@@ -20,18 +22,18 @@ export interface SuggestedHire {
 
 export const SUGGESTED_HIRES: readonly SuggestedHire[] = [
   {
-    id: 'inbox-triage',
-    name: 'Inbox Triage',
-    tagline: 'Sorts the overnight inbox and tells you the three things that need you.',
+    id: 'ad-creator',
+    name: 'Ad Creator',
+    tagline: 'Turns a brand into on-brand ad creative and copy. Generates only; it publishes nothing.',
   },
   {
-    id: 'expense-manager',
-    name: 'Expense Manager',
-    tagline: "Pulls receipts, codes them, and flags only what it can't decide.",
+    id: 'linkedin-agent',
+    name: 'LinkedIn Agent',
+    tagline: 'Plans your week of LinkedIn posts and writes paste-ready drafts.',
   },
   {
-    id: 'sales-outbound',
-    name: 'Sales Outbound',
-    tagline: 'Researches prospects and drafts sequences in your voice.',
+    id: 'startup-kit-agent',
+    name: 'Startup Kit',
+    tagline: 'Turns an idea into a market read, a deck and projections you can defend.',
   },
 ]

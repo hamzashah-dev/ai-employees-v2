@@ -101,12 +101,12 @@ describe('DashboardView', () => {
     )
 
     // Three real §6 agents, each landing on its own detail page.
-    expect(screen.getByRole('link', { name: 'Hire Inbox Triage' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Hire Ad Creator' })).toHaveAttribute(
       'href',
-      '/marketplace/inbox-triage',
+      '/marketplace/ad-creator',
     )
-    expect(screen.getByRole('link', { name: 'Hire Expense Manager' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Hire Sales Outbound' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Hire LinkedIn Agent' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Hire Startup Kit' })).toBeInTheDocument()
 
     // The counting line would only say the same thing again.
     expect(
