@@ -1,4 +1,4 @@
-import { useState, type FC } from 'react'
+import { useCallback, useState, type FC } from 'react'
 import { cn } from '@repo/ui/cn'
 import { Sheet, SheetContent, SheetTitle } from '@repo/ui/sheet'
 import { VisuallyHidden } from '@repo/ui/visually-hidden'
@@ -43,6 +43,9 @@ export const EmployeePanel: FC<EmployeePanelProps> = ({ profile, onClose }) => {
   const { panelRef, width, isDragging, onPointerDown, onKeyDown } = usePanelResize()
   const isLaptop = useIsLaptop()
   const [isMaximized, setIsMaximized] = useState(false)
+  // One toggle, two controls: the header's button and the frame's own. Stable so
+  // the frame's focus listener is not re-bound on every render.
+  const toggleMaximize = useCallback(() => setIsMaximized((on) => !on), [])
   const { view, backLabel, back, openEditor } = usePanelView(onClose)
   const displayName = toDisplayName(profile)
 
@@ -54,7 +57,7 @@ export const EmployeePanel: FC<EmployeePanelProps> = ({ profile, onClose }) => {
         onClose={onClose}
         // Below `laptop` the drawer is already a full-height sheet, so there is
         // nothing to maximize into.
-        onToggleMaximize={isLaptop ? () => setIsMaximized((on) => !on) : undefined}
+        onToggleMaximize={isLaptop ? toggleMaximize : undefined}
         isMaximized={isMaximized}
       />
 
@@ -76,7 +79,19 @@ export const EmployeePanel: FC<EmployeePanelProps> = ({ profile, onClose }) => {
               design puts beneath it. A capped height is the honest resolution;
               the canvas is silent on the maximized aspect.
             */}
-            <ScreenPreview className={cn({ 'h-[52vh]': isMaximized })} />
+            <ScreenPreview
+              profile={profile}
+              /*
+               * No height override any more, in either state: the frame sizes
+               * itself 16:9 from its width, because that is the only ratio that
+               * leaves no grey letterbox around the 1920x1080 remote screen
+               * (see BOX in browser-frame). Forcing a height here would put the
+               * bars straight back — which is what a `h-[52vh]` was doing.
+               */
+              className={cn({ 'max-w-none': isMaximized })}
+              isExpanded={isMaximized}
+              onToggleExpand={isLaptop ? toggleMaximize : undefined}
+            />
             <p className="text-center text-label-sm text-tertiary">
               {displayName}’s screen
             </p>

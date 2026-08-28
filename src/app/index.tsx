@@ -1,4 +1,12 @@
-import { lazy, Suspense, useState, type FC, type ReactNode } from 'react'
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+  type FC,
+  type ReactNode,
+} from 'react'
 import {
   BrowserRouter,
   Navigate,
@@ -11,7 +19,10 @@ import { Providers } from './providers'
 import { AppSidebar } from './components/app-sidebar'
 import { ConnectionBanner } from './components/connection-banner'
 import { TopBar } from './components/top-bar'
+import { useIsLaptop } from '@/modules/core/hooks/media-query'
 import { useHermesConnection } from '@/modules/core/hooks/use-hermes'
+import { useChatStore } from '@/modules/core/stores/chat-store'
+import { isAgentBrowsing } from '@/modules/panel/hooks/use-browser-view'
 import { ROUTES } from '@/modules/roster/constants'
 
 /**
@@ -51,6 +62,55 @@ interface PageProps {
 const EmployeeRoute: FC<PageProps> = ({ onOpenSidebar }) => {
   const { profile } = useParams<{ profile: string }>()
   const [panelOpen, setPanelOpen] = useState(false)
+  const isLaptop = useIsLaptop()
+
+  /**
+   * The drawer opens itself when the agent reaches for a browser.
+   *
+   * The signal is derived, not a new event: a `browser_*` call running on the
+   * open turn, or a clarify question standing (the login ask — the moment the
+   * drawer is the only place to answer). `liveUrl` would be later and rarer,
+   * since it only ever rides on a `browser_navigate` result.
+   *
+   * It has to live here rather than in the drawer, because a closed drawer is
+   * unmounted and cannot watch anything.
+   */
+  const needsPanel = useChatStore((state) => {
+    const thread = state.threads[profile ?? '']
+    return isAgentBrowsing(thread) || thread?.clarify != null
+  })
+
+  /**
+   * Closing it means closed, for the rest of the turn.
+   *
+   * The latch cannot be re-armed off `needsPanel` going false: that boolean
+   * tracks a browser call being *in flight*, so it drops to false in the gap
+   * between every `tool.complete` and the next `tool.start`. Those are two
+   * separate store commits with a render between them, so re-arming there
+   * clears the latch several times a turn — and "find me clients on LinkedIn"
+   * is dozens of browser calls, i.e. the drawer shoves itself back open dozens
+   * of times against a user who closed it. That is the exact argument this
+   * latch exists to let them win.
+   *
+   * The turn ending is the honest boundary, and `thread.status` already marks
+   * it. `needs-you` is excluded deliberately: a standing clarify card is not
+   * the turn being over, and re-arming on it would re-open the drawer the user
+   * just closed.
+   */
+  const isTurnOver = useChatStore((state) => {
+    const status = state.threads[profile ?? '']?.status ?? 'ready'
+    return status !== 'working' && status !== 'needs-you'
+  })
+
+  const dismissed = useRef(false)
+
+  useEffect(() => {
+    if (isTurnOver) dismissed.current = false
+    if (!needsPanel || dismissed.current) return
+    // Below `laptop` the drawer is a full-screen sheet: opening it uninvited
+    // would take the conversation off the screen mid-turn.
+    if (isLaptop) setPanelOpen(true)
+  }, [needsPanel, isTurnOver, isLaptop])
 
   if (!profile) return <Navigate to={ROUTES.EMPLOYEES} replace />
 
@@ -63,7 +123,15 @@ const EmployeeRoute: FC<PageProps> = ({ onOpenSidebar }) => {
         onTogglePanel={() => setPanelOpen((open) => !open)}
         onOpenSidebar={onOpenSidebar}
       />
-      {panelOpen && <EmployeePanel profile={profile} onClose={() => setPanelOpen(false)} />}
+      {panelOpen && (
+        <EmployeePanel
+          profile={profile}
+          onClose={() => {
+            dismissed.current = true
+            setPanelOpen(false)
+          }}
+        />
+      )}
     </div>
   )
 }

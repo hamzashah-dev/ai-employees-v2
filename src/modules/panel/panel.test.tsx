@@ -215,9 +215,12 @@ describe('EmployeePanel', () => {
         name: 'Pause — Sales Outbound isn’t running anything right now',
       }),
     ).toBeDisabled()
-    // The other two have no backend at all and say so.
+    // The other two are disabled because this thread has no `liveUrl` — and
+    // their reasons must say exactly that, not deny a live view can exist. The
+    // moment one arrives the take-over is real (it is the frame itself), and
+    // this strip sits directly under it.
     expect(
-      screen.getByRole('button', { name: /^Take over — Hermes has no remote screen/ }),
+      screen.getByRole('button', { name: /^Take over — There is no live view to take over yet/ }),
     ).toBeDisabled()
     expect(
       screen.getByRole('button', { name: /^Open in new tab — There is no URL/ }),
@@ -253,5 +256,43 @@ describe('EmployeePanel', () => {
 
     await user.click(pause)
     expect(stop).toHaveBeenCalledWith('sales-outbound')
+  })
+
+  it('expands the live view over the conversation and minimizes it back', async () => {
+    const user = userEvent.setup()
+    stubFetch([JOB])
+    useChatStore.setState({
+      threads: {
+        'sales-outbound': {
+          profile: 'sales-outbound',
+          messages: [],
+          hydrated: true,
+          status: 'ready',
+          liveUrl: 'http://127.0.0.1:6080/vnc.html',
+        },
+      },
+    })
+
+    await mount()
+
+    // One state, two controls: enlarging from the frame is the header's
+    // maximize, so the drag handle goes with it and the conversation is covered.
+    await user.click(screen.getByRole('button', { name: 'Enlarge the live view' }))
+
+    expect(screen.getByRole('button', { name: 'Restore split view' })).toBeInTheDocument()
+    expect(screen.queryByRole('slider', { name: 'Resize panel' })).not.toBeInTheDocument()
+    // Still interactive, and still saying what it cannot vouch for.
+    expect(screen.getByTitle('Live view of the browser')).toHaveAttribute(
+      'src',
+      'http://127.0.0.1:6080/vnc.html',
+    )
+    expect(
+      screen.getByRole('link', { name: 'Open the live view in a new tab' }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Exit the enlarged live view' }))
+
+    expect(screen.getByRole('button', { name: 'Maximize panel' })).toBeInTheDocument()
+    expect(screen.getByRole('slider', { name: 'Resize panel' })).toBeInTheDocument()
   })
 })

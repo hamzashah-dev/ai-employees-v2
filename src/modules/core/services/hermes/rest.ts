@@ -70,12 +70,33 @@ export async function fetchProfiles(): Promise<HermesProfile[]> {
 export function createProfile(body: {
   name: string
   clone_from?: string
+  /**
+   * Copy the default profile's config.yaml, .env and skills into the new one.
+   * `ProfileCreate` in computer_cli/web_server.py has always accepted this; the
+   * type just never listed it. It is how a hire inherits the browser identity
+   * block that makes a signed-in session persist across runs.
+   */
+  clone_from_default?: boolean
   description?: string
   provider?: string
   model?: string
   hub_skills?: string[]
 }): Promise<unknown> {
   return request('/api/profiles', { method: 'POST', body: JSON.stringify(body) })
+}
+
+/**
+ * Overwrite a profile's `SOUL.md` — the system prompt Hermes loads on every run.
+ *
+ * `POST /api/profiles` seeds a name, a description and the bundled skills, but
+ * leaves SOUL.md as the stock Computer Agent boilerplate. A hired agent
+ * therefore has the right tools and the wrong identity until this is called.
+ */
+export function updateProfileSoul(name: string, content: string): Promise<unknown> {
+  return request(`/api/profiles/${encodeURIComponent(name)}/soul`, {
+    method: 'PUT',
+    body: JSON.stringify({ content }),
+  })
 }
 
 export function deleteProfile(name: string): Promise<unknown> {

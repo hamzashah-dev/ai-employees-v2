@@ -155,6 +155,37 @@ export class SessionManager {
     await this.gateway.request('session.interrupt', { session_id: sessionId })
   }
 
+  /**
+   * Answer an open `clarify.request` — the login handoff, among other things.
+   *
+   * The signature is read off the gateway, not guessed. `tui_gateway/server.py`:
+   *
+   *     @method("clarify.respond")
+   *     def _(rid, params: dict) -> dict:
+   *         return _respond(rid, params, "answer", allow_expired=True)
+   *
+   * and `_respond` reads exactly two params — `params["request_id"]` and, for
+   * this method, `params["answer"]`:
+   *
+   *     r = params.get("request_id", "")
+   *     ...
+   *     _answers[r] = params.get(key, "")
+   *
+   * So there is no `session_id` on this call: the request id from the
+   * `clarify.request` event is the whole address, and `_pending` is keyed by it
+   * alone — which is why an answer still lands after a socket reconnect dropped
+   * our session ids. `allow_expired=True` means a late answer resolves as
+   * `{status: "expired"}` rather than erroring.
+   *
+   * `profile` is not sent; it is taken so callers address employees the same way
+   * they do everywhere else in this class, and so a future session-scoped
+   * variant of the RPC needs no signature change at the call sites.
+   */
+  async answerClarify(profile: string, requestId: string, answer: string): Promise<void> {
+    void profile
+    await this.gateway.request('clarify.respond', { request_id: requestId, answer })
+  }
+
   async history(profile: string): Promise<SessionHistoryResult> {
     const sessionId = await this.ensureSession(profile)
     return this.gateway.request<SessionHistoryResult>('session.history', {

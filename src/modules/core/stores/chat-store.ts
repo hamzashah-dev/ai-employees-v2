@@ -12,6 +12,8 @@ import type {
 } from '../types/chat'
 import type {
   ApprovalRequestPayload,
+  BlockingRequestExpirePayload,
+  ClarifyRequestPayload,
   ErrorPayload,
   HermesSessionInfo,
   MessageCompletePayload,
@@ -67,6 +69,7 @@ interface ChatState {
   send: (profile: string, text: string) => Promise<void>
   stop: (profile: string) => Promise<void>
   clearApproval: (profile: string) => void
+  answerClarify: (profile: string, text: string) => Promise<void>
   applyEvent: (event: GatewayEvent) => void
 }
 
@@ -218,8 +221,39 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const thread = state.threads[profile]
       if (!thread) return state
       const next: EmployeeThread = { ...thread, approval: undefined }
-      if (thread.status === 'needs-you') next.status = 'working'
+      // An open clarify is the other thing that owns `needs-you`.
+      if (thread.status === 'needs-you' && !thread.clarify) next.status = 'working'
       return { threads: { ...state.threads, [profile]: next } }
+    })
+  },
+
+  /**
+   * Unpark an agent that asked the human a question. The whole agent thread is
+   * blocked inside `_block()` until this lands, so this is the only way out
+   * other than the (configurable, 1h-by-default, possibly infinite) timeout.
+   */
+  answerClarify: async (profile, text) => {
+    const request = get().threads[profile]?.clarify
+    if (!request || !sessions) return
+    try {
+      await sessions.answerClarify(profile, request.requestId, text)
+    } catch (err) {
+      // Leave the card standing: the agent is still parked, so the human's only
+      // way through is to try again.
+      set((state) => {
+        const thread = state.threads[profile]
+        if (!thread) return state
+        return {
+          threads: { ...state.threads, [profile]: { ...thread, error: (err as Error).message } },
+        }
+      })
+      return
+    }
+    set((state) => {
+      const thread = state.threads[profile]
+      // A second clarify may already have replaced this one.
+      if (!thread || thread.clarify?.requestId !== request.requestId) return state
+      return { threads: { ...state.threads, [profile]: clearClarify(thread) } }
     })
   },
 
@@ -310,11 +344,20 @@ export function reduceEvent(thread: EmployeeThread, event: GatewayEvent): Employ
       // `working`. Gated on `running`, because `session.create`,
       // `session.resume` and `config.set` all emit this same frame outside any
       // turn.
+      //
+      // `info.tools` is merged *above* that gate on purpose: the toolsets only
+      // ever arrive on the create/resume/config emissions, which are exactly the
+      // ones the gate drops. Reading them after it meant they were never
+      // captured, so the UI could not tell whether a profile even has the
+      // browser toolset.
       const info = payload as HermesSessionInfo
-      if (info.running !== false || thread.status !== 'working') return thread
+      const base = info.tools
+        ? { ...thread, toolsets: { ...thread.toolsets, ...info.tools } }
+        : thread
+      if (info.running !== false || base.status !== 'working') return base
       return endTurn({
-        ...thread,
-        messages: thread.messages.map((m) => (m.streaming ? { ...m, streaming: false } : m)),
+        ...base,
+        messages: base.messages.map((m) => (m.streaming ? { ...m, streaming: false } : m)),
       })
     }
 
@@ -339,6 +382,15 @@ export function reduceEvent(thread: EmployeeThread, event: GatewayEvent): Employ
       const tool = payload as ToolCompletePayload
       if (!tool.tool_id) return thread
       const id = tool.tool_id
+      // `browser_navigate` puts the live-view address on its result and there is
+      // no other carrier: no browser-session event exists and there is nothing
+      // to poll. Miss it here and the panel can never show a frame at all.
+      const live = liveUrlFrom(tool.result)
+      if (live && live !== thread.liveUrl) {
+        return withCurrentMessage({ ...thread, liveUrl: live }, (message) =>
+          upsertToolCall(message, { id, name: tool.name ?? 'tool', status: 'done' }),
+        )
+      }
       // Can be the *first* sight of an id: the gateway suppresses `tool.start`
       // when tool progress is off, but still emits `tool.complete` when the
       // payload carries an inline diff. `upsertToolCall` therefore creates the
@@ -366,6 +418,34 @@ export function reduceEvent(thread: EmployeeThread, event: GatewayEvent): Employ
       return { ...thread, approval: request, status: 'needs-you' }
     }
 
+    case 'clarify.request': {
+      // The agent stopped and is waiting on a human — this is the login handoff:
+      // the user finishes the sign-in in the shared browser, then says so here.
+      // The gateway has parked the entire agent thread until `clarify.respond`
+      // arrives, so nothing else will move in this session meanwhile.
+      const clarify = payload as ClarifyRequestPayload
+      if (!clarify.request_id) return thread
+      return {
+        ...thread,
+        clarify: {
+          requestId: clarify.request_id,
+          question: clarify.question ?? '',
+          ...(clarify.choices?.length ? { choices: clarify.choices } : {}),
+        },
+        status: 'needs-you',
+      }
+    }
+
+    case 'clarify.expire': {
+      // The only truthful end-of-wait signal. The wait itself is
+      // `agent.clarify_timeout` — 3600s by default, unlimited when <= 0 — so the
+      // UI must never draw a countdown and must never expire a card on its own.
+      const expire = payload as BlockingRequestExpirePayload
+      if (!thread.clarify) return thread
+      if (expire.request_id && expire.request_id !== thread.clarify.requestId) return thread
+      return clearClarify(thread)
+    }
+
     case 'error': {
       const error = payload as ErrorPayload
       const message = error.message ?? error.detail ?? 'The agent reported an error.'
@@ -384,21 +464,82 @@ export function reduceEvent(thread: EmployeeThread, event: GatewayEvent): Employ
       // event types than this UI models, and a new one must not break the
       // thread. Two of the unhandled ones are worth acting on eventually:
       // `notification.show` is the credits/quota channel, and the blocking
-      // `clarify.request` / `secret.request` / `sudo.request` park the agent
-      // thread for up to 300s waiting for a `*.respond` that never comes, so an
-      // agent asking a clarifying question currently reads as a hang.
+      // `secret.request` / `sudo.request` still park the agent thread with
+      // nobody answering the matching `*.respond`, so those read as a hang.
+      // (`clarify.request` used to land here too — it is handled above now.)
       return thread
   }
 }
 
-/** Settle the ready/needs-you side of a turn ending, whichever terminal fired. */
+/**
+ * Settle the ready/needs-you side of a turn ending, whichever terminal fired.
+ * An outstanding clarify counts as much as an approval: the human still owes the
+ * agent an answer, and downgrading to `ready` hides the card's own thread from
+ * the roster and the dashboard.
+ */
 function endTurn(thread: EmployeeThread): EmployeeThread {
   return {
     ...thread,
     messages: reapRunningTools(thread.messages),
-    status: thread.approval ? 'needs-you' : 'ready',
+    status: thread.approval || thread.clarify ? 'needs-you' : 'ready',
     workingSince: undefined,
     statusText: undefined,
+  }
+}
+
+/**
+ * Answered or expired: the parked agent thread carries on with its turn, so the
+ * thread goes back to `working` — unless an approval is also outstanding, or the
+ * turn had already ended around the open card.
+ */
+/**
+ * Pull the noVNC address out of a `browser_navigate` result, rewriting its host.
+ *
+ * The backend builds this from its OWN view of the container
+ * (`urlparse(CAMOFOX_URL).hostname`), which is `localhost` or a bare Docker
+ * service name like `camofox-browser`. Both are meaningless in the user's
+ * browser — `localhost` there is the user's own machine, not the box running
+ * the agent — and a frame pointed at either fails silently, cross-origin, with
+ * nothing we can detect. The dashboard and camofox share a host in every
+ * shipped topology, so the page's own hostname is the right one. Locally this
+ * is a no-op, because both are already `localhost`.
+ */
+export function liveUrlFrom(result: unknown): string | undefined {
+  if (!result || typeof result !== 'object') return undefined
+  const raw = (result as { vnc_url?: unknown }).vnc_url
+  if (typeof raw !== 'string' || !raw) return undefined
+  try {
+    const url = new URL(raw)
+    const bare = !url.hostname.includes('.') || url.hostname === 'localhost'
+    if (bare && typeof window !== 'undefined') url.hostname = window.location.hostname
+
+    /*
+     * Ask noVNC to connect, and to fit the screen to the frame.
+     *
+     * Without `autoconnect` the page renders its own splash with a Connect
+     * button, which is what a bare `/vnc.html` gives you — the frame loads
+     * perfectly and shows the noVNC logo instead of the browser, so it reads as
+     * "the live view is broken" when nothing is broken at all. Without
+     * `resize=scale` the 1920x1080 remote display is drawn 1:1 and the panel
+     * shows a clipped top-left corner of it.
+     *
+     * Set here rather than in the tool result, so the address the backend
+     * reports stays the address, and both the frame and the new-tab link get
+     * the same connecting view from one place.
+     */
+    url.searchParams.set('autoconnect', '1')
+    url.searchParams.set('resize', 'scale')
+    return url.toString()
+  } catch {
+    return undefined
+  }
+}
+
+function clearClarify(thread: EmployeeThread): EmployeeThread {
+  return {
+    ...thread,
+    clarify: undefined,
+    status: thread.status === 'needs-you' && !thread.approval ? 'working' : thread.status,
   }
 }
 

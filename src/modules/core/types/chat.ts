@@ -1,3 +1,5 @@
+import type { ClarifyRequest } from '../services/hermes/types'
+
 export type MessageRole = 'user' | 'employee' | 'system'
 
 /** One contiguous run of model reasoning. */
@@ -86,6 +88,27 @@ export interface EmployeeThread {
   /** Free text from `status.update`, e.g. "Researching 14 prospects". */
   statusText?: string
   approval?: ApprovalRequest
+  /**
+   * The agent has asked the human a question and its whole thread is parked on
+   * the answer (`clarify.respond`). No deadline is stored because there is no
+   * honest one — see `ClarifyRequest`.
+   */
+  clarify?: ClarifyRequest
+  /**
+   * noVNC page for the browser this employee is driving, once we have seen one.
+   *
+   * It arrives on a `browser_navigate` tool RESULT and nowhere else — there is
+   * no browser-session event and nothing to poll — so it can only be known
+   * after the agent's first navigation of the session, and it is sticky
+   * afterwards: the same container serves the same page for the session's life.
+   */
+  liveUrl?: string
+  /**
+   * `session.info.tools`, grouped by toolset (`{ browser: ['browser_navigate'] }`).
+   * Arrives on session create/resume rather than during a turn, and is how the
+   * UI knows whether this employee has a given toolset at all.
+   */
+  toolsets?: Record<string, string[]>
   /** Whether history has been loaded from the backend yet. */
   hydrated: boolean
   /** Wall-clock ms when the current turn started, for the elapsed timer. */

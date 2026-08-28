@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { reduceEvent, toChatMessage, toChatMessages } from './chat-store'
+import { liveUrlFrom, reduceEvent, toChatMessage, toChatMessages } from './chat-store'
 import type { EmployeeThread } from '../types/chat'
 import type { GatewayEvent } from '../services/hermes/gateway'
 
@@ -209,6 +209,116 @@ describe('reduceEvent', () => {
     expect(state.status).toBe('needs-you')
   })
 
+  it('parks the thread on needs-you for a clarify request', () => {
+    // The gateway has blocked the whole agent thread inside `_block()` waiting
+    // for `clarify.respond`; this is the login handoff.
+    const state = reduceEvent(
+      thread({ status: 'working' }),
+      event('clarify.request', {
+        request_id: 'c1',
+        question: 'Finish the LinkedIn login, then tell me when you are in.',
+        choices: ['done', 'skip'],
+      }),
+    )
+
+    expect(state.status).toBe('needs-you')
+    expect(state.clarify).toEqual({
+      requestId: 'c1',
+      question: 'Finish the LinkedIn login, then tell me when you are in.',
+      choices: ['done', 'skip'],
+    })
+  })
+
+  it('ignores a clarify request with no request_id to answer', () => {
+    const before = thread({ status: 'working' })
+    expect(reduceEvent(before, event('clarify.request', { question: 'hm?' }))).toBe(before)
+  })
+
+  it('omits choices when the clarify is free-text', () => {
+    const state = reduceEvent(thread(), event('clarify.request', { request_id: 'c1' }))
+    expect(state.clarify).toEqual({ requestId: 'c1', question: '' })
+  })
+
+  it('stays on needs-you when the turn completes with a clarify outstanding', () => {
+    // The agent can emit its turn terminal around an open card; downgrading to
+    // `ready` would hide the one thread that is actually waiting on the human.
+    let state = reduceEvent(thread(), event('message.start'))
+    state = reduceEvent(state, event('clarify.request', { request_id: 'c1', question: 'in?' }))
+    state = reduceEvent(state, event('message.complete', { text: 'waiting' }))
+
+    expect(state.status).toBe('needs-you')
+    expect(state.clarify?.requestId).toBe('c1')
+  })
+
+  it('keeps needs-you through the session.info terminal too', () => {
+    let state = reduceEvent(thread(), event('message.start'))
+    state = reduceEvent(state, event('clarify.request', { request_id: 'c1', question: 'in?' }))
+    state = reduceEvent(state, event('session.info', { running: false }))
+
+    expect(state.status).toBe('needs-you')
+  })
+
+  it('clears the clarify on expire and resumes the turn', () => {
+    // `clarify.expire` is the only expiry signal there is — the wait is 3600s by
+    // default and unlimited when `agent.clarify_timeout <= 0`, so no client may
+    // time a card out itself.
+    let state = reduceEvent(thread(), event('message.start'))
+    state = reduceEvent(state, event('clarify.request', { request_id: 'c1', question: 'in?' }))
+    state = reduceEvent(state, event('clarify.expire', { request_id: 'c1' }))
+
+    expect(state.clarify).toBeUndefined()
+    expect(state.status).toBe('working')
+  })
+
+  it('ignores an expire for a clarify that is not the open one', () => {
+    let state = reduceEvent(thread(), event('message.start'))
+    state = reduceEvent(state, event('clarify.request', { request_id: 'c2', question: 'in?' }))
+    const after = reduceEvent(state, event('clarify.expire', { request_id: 'c1' }))
+
+    expect(after).toBe(state)
+    expect(after.clarify?.requestId).toBe('c2')
+  })
+
+  it('keeps needs-you when a clarify expires with an approval still open', () => {
+    let state = reduceEvent(thread(), event('message.start'))
+    state = reduceEvent(state, event('clarify.request', { request_id: 'c1', question: 'in?' }))
+    state = reduceEvent(state, event('approval.request', { description: 'ok?' }))
+    state = reduceEvent(state, event('clarify.expire', { request_id: 'c1' }))
+
+    expect(state.clarify).toBeUndefined()
+    expect(state.status).toBe('needs-you')
+  })
+
+  it('captures the toolsets from a session.info that is not a turn terminal', () => {
+    // `info.tools` only ever rides the create/resume/config emissions, i.e. the
+    // ones the turn-terminal gate drops. Merging below the gate meant the UI
+    // never learned that a profile has the browser toolset at all.
+    const state = reduceEvent(
+      thread(),
+      event('session.info', {
+        running: true,
+        tools: { browser: ['browser_navigate', 'browser_click'], web: ['web_search'] },
+      }),
+    )
+
+    expect(state.toolsets?.browser).toEqual(['browser_navigate', 'browser_click'])
+  })
+
+  it('merges later toolsets over the ones already known', () => {
+    let state = reduceEvent(thread(), event('session.info', { tools: { web: ['web_search'] } }))
+    state = reduceEvent(state, event('session.info', { tools: { browser: ['browser_navigate'] } }))
+
+    expect(Object.keys(state.toolsets ?? {})).toEqual(['web', 'browser'])
+  })
+
+  it('still ends the turn on the session.info that carries toolsets', () => {
+    let state = reduceEvent(thread(), event('message.start'))
+    state = reduceEvent(state, event('session.info', { running: false, tools: { web: ['x'] } }))
+
+    expect(state.status).toBe('ready')
+    expect(state.toolsets?.web).toEqual(['x'])
+  })
+
   it('marks the streaming message with an error', () => {
     let state = reduceEvent(thread(), event('message.start'))
     state = reduceEvent(state, event('error', { message: 'model unavailable' }))
@@ -291,5 +401,35 @@ describe('toChatMessages', () => {
     expect(messages.map((m) => m.role)).toEqual(['employee', 'user'])
     expect(Object.keys(messages[0]?.toolCalls ?? {})).toHaveLength(1)
     expect(messages[1]?.toolCalls).toEqual({})
+  })
+})
+
+/**
+ * The live view is the one part of the panel a user can see fail without this
+ * app knowing, so what goes in the frame's `src` is worth pinning down.
+ */
+describe('liveUrlFrom', () => {
+  it('tells noVNC to connect and to fit the frame', () => {
+    const url = new URL(liveUrlFrom({ vnc_url: 'http://127.0.0.1:6080/vnc.html' }) ?? '')
+
+    // A bare /vnc.html renders noVNC's own splash with a Connect button: the
+    // frame loads, shows a logo instead of the browser, and reads as broken.
+    expect(url.searchParams.get('autoconnect')).toBe('1')
+    // And the remote display is 1920x1080; drawn 1:1 the panel shows a corner.
+    expect(url.searchParams.get('resize')).toBe('scale')
+    expect(url.pathname).toBe('/vnc.html')
+    expect(url.port).toBe('6080')
+  })
+
+  it('keeps a routable host and drops anything that is not a URL', () => {
+    // A real hostname is left alone — only bare/loopback names get rewritten to
+    // the page's own host, and jsdom serves this on localhost.
+    expect(liveUrlFrom({ vnc_url: 'http://camofox.internal:6080/vnc.html' })).toContain(
+      'camofox.internal',
+    )
+    expect(liveUrlFrom({ vnc_url: 'not a url' })).toBeUndefined()
+    expect(liveUrlFrom({ vnc_url: '' })).toBeUndefined()
+    expect(liveUrlFrom({})).toBeUndefined()
+    expect(liveUrlFrom(null)).toBeUndefined()
   })
 })

@@ -115,6 +115,20 @@ describe('SessionManager', () => {
     expect(request).not.toHaveBeenCalled()
   })
 
+  it('answers a clarify by request id alone, with no session id', async () => {
+    // `clarify.respond` -> `_respond(rid, params, "answer")` reads only
+    // `params["request_id"]` and `params["answer"]`; `_pending` is keyed by the
+    // request id, so no session has to exist for the answer to land.
+    const { manager, request } = makeManager({ known: ['ad-creator'] })
+
+    await manager.answerClarify('ad-creator', 'c1', 'logged in')
+
+    expect(request).toHaveBeenCalledWith('clarify.respond', {
+      request_id: 'c1',
+      answer: 'logged in',
+    })
+  })
+
   it('throws when the server returns no session id', async () => {
     const request = vi.fn().mockResolvedValue({})
     const { manager } = makeManager({ known: ['ad-creator'], request })
