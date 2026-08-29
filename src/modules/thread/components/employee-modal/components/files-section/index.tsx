@@ -1,11 +1,13 @@
-import { useState, type FC } from 'react'
-import { FileTextIcon } from '@repo/icons/file-text'
-import { FolderClosedIcon } from '@repo/icons/folder-closed-icon'
+import type { FC } from 'react'
+import { ArrowLeftIcon } from '@repo/icons/arrow-left'
 import { Button } from '@repo/ui/button'
 import { Skeleton } from '@repo/ui/skeleton'
+import { FileRows } from '../file-rows'
+import { FileViewer } from '../file-viewer'
 import { SectionLabel } from '../section-label'
+import { WorkspaceBreadcrumbs } from '../workspace-breadcrumbs'
 import { VISIBLE_FILES } from '../../constants'
-import { useWorkspaceFiles } from '../../hooks/use-workspace-files'
+import { useFileBrowser } from '../../hooks/use-file-browser'
 
 interface FilesSectionProps {
   profile: string
@@ -13,11 +15,17 @@ interface FilesSectionProps {
 }
 
 /**
- * What is in this employee's workspace, newest first.
+ * What is in this employee's workspace — browsable, newest first.
  *
  * Real data, from `GET /api/files` pointed at `<profile.path>/workspace` — see
  * `use-workspace-files` for why the path has to be assembled here rather than passed as a
- * `profile` parameter.
+ * `profile` parameter. A folder row descends into it and the breadcrumb comes back; the
+ * workspace root is a hard boundary, held in `use-file-browser` rather than by the endpoint,
+ * which on a stock install has no root of its own and would list anywhere it was pointed.
+ *
+ * A file row opens the fullscreen viewer. What that can show depends on the file — see
+ * `PreviewPane` — but every file can be downloaded, including the ones nothing here can
+ * render.
  *
  * What the design asks for and the backend has no answer to is *attribution*: nothing in
  * the managed-files payload says which employee, session or turn wrote a file, and Hermes
@@ -26,17 +34,23 @@ interface FilesSectionProps {
  * the same.
  *
  * "See all" expands the list in place. There is no files route in this app to send anyone
- * to, and a link that navigated out of the modal would lose the thread behind it.
+ * to, and a link that navigated out of the card would lose the thread behind it.
  */
 export const FilesSection: FC<FilesSectionProps> = ({ profile, displayName }) => {
-  const { files, isLoading, error } = useWorkspaceFiles(profile)
-  const [expanded, setExpanded] = useState(false)
+  const browser = useFileBrowser(profile)
+  const { files, isLoading, error, atRoot, parent, expanded } = browser
 
+  /*
+   * The label names the directory being listed, not the section. Once a folder can be
+   * opened, "Workspace · 9" over the contents of a subfolder is a false count of the
+   * workspace — the crumb label is the only honest heading for the list below it.
+   */
+  const here = browser.crumbs[browser.crumbs.length - 1]?.label ?? 'Workspace'
   const shown = expanded ? files : files.slice(0, VISIBLE_FILES)
   const hidden = files.length - shown.length
 
   return (
-    <section aria-label="Files" className="flex flex-col gap-1">
+    <section aria-label="Files" className="flex flex-col gap-0.5">
       <SectionLabel
         action={
           hidden > 0 || expanded ? (
@@ -44,15 +58,32 @@ export const FilesSection: FC<FilesSectionProps> = ({ profile, displayName }) =>
               type="button"
               variant="link-secondary"
               size="xs"
-              onClick={() => setExpanded((on) => !on)}
+              onClick={browser.onToggleExpanded}
             >
               {expanded ? 'Show less' : `See all ${files.length}`}
             </Button>
           ) : undefined
         }
       >
-        {isLoading || error ? 'Files' : `Files · ${files.length}`}
+        {isLoading || error ? here : `${here} · ${files.length}`}
       </SectionLabel>
+
+      {browser.crumbs.length > 0 && (
+        <div className="flex items-center gap-1 py-1">
+          {!atRoot && parent && (
+            <Button
+              type="button"
+              variant="icon-ghost-tertiary"
+              size="icon-xs"
+              aria-label="Up one folder"
+              onClick={() => browser.onNavigate(parent)}
+            >
+              <ArrowLeftIcon />
+            </Button>
+          )}
+          <WorkspaceBreadcrumbs crumbs={browser.crumbs} onNavigate={browser.onNavigate} />
+        </div>
+      )}
 
       {isLoading && (
         <div className="flex flex-col gap-2 py-2">
@@ -69,31 +100,22 @@ export const FilesSection: FC<FilesSectionProps> = ({ profile, displayName }) =>
 
       {!isLoading && !error && files.length === 0 && (
         <p className="py-2 text-label-md text-tertiary">
-          Nothing in {displayName}’s workspace yet. Files an employee writes elsewhere on
-          disk are not listed — Hermes records no author for a file.
+          {atRoot
+            ? `Nothing in ${displayName}’s workspace yet. Files an employee writes elsewhere on disk are not listed — Hermes records no author for a file.`
+            : 'This folder is empty.'}
         </p>
       )}
 
-      <ul className="flex flex-col">
-        {shown.map((file) => (
-          <li key={file.path} className="flex items-center gap-3 py-2">
-            {file.isDirectory ? (
-              <FolderClosedIcon className="size-5 shrink-0 stroke-[1.125] text-secondary" />
-            ) : (
-              <FileTextIcon className="size-5 shrink-0 text-secondary" />
-            )}
-            <span className="min-w-0 flex-1 truncate text-label-md text-primary">
-              {file.name}
-            </span>
-            <time
-              dateTime={file.timeIso}
-              className="shrink-0 text-label-xs text-tertiary"
-            >
-              {file.timeLabel}
-            </time>
-          </li>
-        ))}
-      </ul>
+      <FileRows files={shown} onOpen={browser.onOpen} />
+
+      {files.length > 0 && atRoot && (
+        <p className="pt-2 text-label-xs text-tertiary">
+          Files written elsewhere on disk are not listed — Hermes records no author for a
+          file.
+        </p>
+      )}
+
+      {browser.open && <FileViewer file={browser.open} onClose={browser.onCloseViewer} />}
     </section>
   )
 }

@@ -546,3 +546,63 @@ export interface HermesTranscription {
   transcript?: string
   provider?: string | null
 }
+
+/**
+ * One provider row from `/api/model/options`.
+ *
+ * `slug` is the id `PUT /api/profiles/{name}/model` wants as `provider` — the
+ * payload has no `id` field, and `name` is the display label ("GitHub Copilot"),
+ * so reaching for the wrong one writes a provider Hermes cannot resolve.
+ */
+export interface HermesModelProvider {
+  slug: string
+  name: string
+  authenticated: boolean
+  is_current?: boolean
+  /** Model ids, already curated and ordered by the backend. */
+  models: string[]
+  total_models?: number
+}
+
+/** `providers` plus the profile's *current* selection, which is flat on the root. */
+export interface HermesModelOptions {
+  providers: HermesModelProvider[]
+  provider: string | null
+  model: string | null
+}
+
+// -------------------------------------------------------------- credentials
+
+/**
+ * One row of `GET /api/env?profile=…`.
+ *
+ * The endpoint answers the *whole catalogue*, not the profile's `.env`: 295 rows on this
+ * install, of which two were set. Every row therefore carries `is_set`, and a caller that
+ * wants "what does this employee actually hold" has to filter on it — see `toVaultKeys`.
+ *
+ * `redacted_value` is the masked form Hermes computes with `redact_key`; the real value only
+ * ever comes back from `POST /api/env/reveal`, which is token-gated, rate-limited to 5 per
+ * 30s and audit-logged server-side.
+ */
+export interface HermesEnvVar {
+  is_set?: boolean
+  redacted_value?: string | null
+  description?: string
+  url?: string | null
+  category?: string
+  is_password?: boolean
+  /** Tool names that read this key. Empty for provider credentials. */
+  tools?: string[]
+  advanced?: boolean
+  /**
+   * True for a messaging-platform credential owned by the dashboard's Channels page.
+   * 168 of the 295 rows on this install. Hidden here rather than duplicating that UI.
+   */
+  channel_managed?: boolean
+  provider?: string
+  provider_label?: string
+  /** True for a key the user put in `.env` that is in no catalogue. Always a secret. */
+  custom?: boolean
+}
+
+export type HermesEnvResponse = Record<string, HermesEnvVar>

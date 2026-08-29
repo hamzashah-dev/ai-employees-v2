@@ -48,15 +48,16 @@ describe('sidebar mode', () => {
     expect(screen.getByText('Sites')).toBeInTheDocument()
     expect(screen.getByText('AI Tools')).toBeInTheDocument()
     expect(screen.getByText('Projects')).toBeInTheDocument()
-    expect(screen.queryByText('Marketplace')).not.toBeInTheDocument()
+    // `Team` is the Employees-mode roster heading; the default nav has no roster.
+    expect(screen.queryByText('Team')).not.toBeInTheDocument()
   })
 
   it('replaces the whole body on an Employees route, on the very first render', () => {
     // No effect has run yet at this point — the pathname guard is what carries it.
     renderAt('/employees/inbox-manager')
 
-    expect(screen.getByText('Marketplace')).toBeInTheDocument()
     expect(screen.getByText('Team')).toBeInTheDocument()
+    expect(screen.getByText('Search')).toBeInTheDocument()
     expect(screen.queryByText('Sites')).not.toBeInTheDocument()
   })
 

@@ -1,7 +1,8 @@
-import { API_BASE, authHeaders } from './config'
+import { API_BASE, authHeaders, getSessionToken } from './config'
 import type {
   HermesCronJob,
   HermesCronJobsResponse,
+  HermesEnvResponse,
   HermesFileContent,
   HermesFileListing,
   HermesManagedFile,
@@ -9,6 +10,7 @@ import type {
   HermesProfilesResponse,
   HermesMcpServer,
   HermesMcpServersResponse,
+  HermesModelOptions,
   HermesSearchHit,
   HermesSearchResponse,
   HermesSessionRow,
@@ -367,6 +369,62 @@ export function fetchFileContent(path: string): Promise<HermesFileContent> {
   return request<HermesFileContent>(`/api/files/read?path=${encodeURIComponent(path)}`)
 }
 
+/**
+ * A URL a browser can hit directly for one file's bytes.
+ *
+ * `/api/files/download` is the only route in `_QUERY_TOKEN_API_PATHS`
+ * (`computer_cli/web_server.py:371`), and it is on that list for exactly this reason: a
+ * `<a download>`, an `<img src>` or a `<video src>` cannot set the session header, so the
+ * token has to travel in the query string. Every other guard still applies — the 403 on
+ * `_is_sensitive_path` and the 413 over `_MANAGED_FILE_MAX_BYTES` are the same ones
+ * `/api/files/read` enforces.
+ *
+ * Preferred over `/api/files/read` wherever a browser can consume bytes directly: `read`
+ * base64s the whole file into a data URL, which costs ~33% inflation, a full copy in JS
+ * memory, and a string long enough to be refused as a URL. This streams, and Starlette's
+ * `FileResponse` answers `Range` with a 206 — verified against the running backend — so a
+ * `<video>` pointed here seeks without downloading the rest.
+ *
+ * The response carries `Content-Disposition: attachment`, which browsers apply to
+ * *navigations* (a link, an iframe) but not to media subresources. That asymmetry is the
+ * whole design of the viewer: `<img>`/`<video>` use this URL, a PDF must not.
+ */
+export function managedFileUrl(path: string): string {
+  const token = getSessionToken()
+  const auth = token ? `&token=${encodeURIComponent(token)}` : ''
+  return `${API_BASE}/api/files/download?path=${encodeURIComponent(path)}${auth}`
+}
+
+/**
+ * One file's bytes, streamed rather than base64'd.
+ *
+ * The `Blob` comes back typed from the response's own `Content-Type`, which
+ * `download_managed_file` guesses from the filename — so `URL.createObjectURL` on it yields
+ * a URL an `<iframe>` will actually render. That is the point: an iframe pointed at the
+ * endpoint directly never fires `onload`, because Chrome honours the attachment disposition
+ * and turns the navigation into a download. Verified both ways in Chrome.
+ *
+ * Callers own the object URL and must revoke it — an unrevoked one pins the whole file in
+ * memory for the life of the document.
+ */
+export async function fetchManagedFileBlob(path: string): Promise<Blob> {
+  const url = `/api/files/download?path=${encodeURIComponent(path)}`
+  const response = await fetch(`${API_BASE}${url}`, { headers: authHeaders() })
+
+  if (!response.ok) {
+    let detail = response.statusText
+    try {
+      const body = (await response.json()) as { detail?: string }
+      if (body.detail) detail = body.detail
+    } catch {
+      // Non-JSON error body; the status text will have to do.
+    }
+    throw new HermesHttpError(response.status, detail, url)
+  }
+
+  return response.blob()
+}
+
 // ------------------------------------------------------------------- audio
 
 /**
@@ -385,4 +443,160 @@ export async function transcribeAudio(
     body: JSON.stringify({ data_url: dataUrl, mime_type: mimeType }),
   })
   return (data.transcript ?? '').trim()
+}
+
+// ------------------------------------------------------------------ models
+
+/**
+ * The models this employee could run on.
+ *
+ * Scoped by profile because the picker context is per-profile — current model,
+ * custom providers from that profile's config, and its own `.env` auth state.
+ * Unscoped, it answers for the launch profile and would offer a roster of
+ * providers this employee cannot actually reach.
+ *
+ * Only providers already configured come back; `include_unconfigured` would add
+ * the ones needing setup, and this app has no surface for authenticating one.
+ */
+export function fetchModelOptions(profile: string): Promise<HermesModelOptions> {
+  return request<HermesModelOptions>(
+    `/api/model/options?profile=${encodeURIComponent(profile)}`,
+  )
+}
+
+/**
+ * Point an employee at a different model.
+ *
+ * Writes `model.default` + `model.provider` in that profile's own `config.yaml`
+ * without touching the dashboard's active profile. Both fields are required —
+ * the endpoint 400s on an empty either — and it lands on the next turn rather
+ * than the one in flight, the same as the MCP `enabled` flag.
+ */
+export function setProfileModel(
+  profile: string,
+  provider: string,
+  model: string,
+): Promise<unknown> {
+  return request(`/api/profiles/${encodeURIComponent(profile)}/model`, {
+    method: 'PUT',
+    body: JSON.stringify({ provider, model }),
+  })
+}
+
+
+// ------------------------------------------------------------ credentials
+
+/**
+ * The per-employee key store — the only real one Hermes has.
+ *
+ * `GET /api/env?profile=<name>` answers a dict of every environment variable it knows
+ * about, each row carrying `is_set`, `redacted_value` and `is_password`
+ * (`computer_cli/web_server.py:7365`). `PUT /api/env` writes one, scoped by `body.profile`,
+ * and lands it in that profile's own `.env` (`_profile_scope` → `save_env_value` →
+ * `get_computer_home()/.env`). `load_env` reads that one file and nothing else — there is no
+ * inheritance from the root install's `.env`, which is why this is honestly per-employee.
+ *
+ * Arbitrary names are accepted so long as they match `^[A-Za-z_][A-Za-z0-9_]*$` and are not
+ * on the writer denylist (`PATH`, `LD_PRELOAD`, `COMPUTER_HOME`, …); a refusal comes back as
+ * a 400 carrying the reason, so it is worth surfacing verbatim.
+ *
+ * This is worth spelling out because the obvious alternative does not work: `profile.yaml`
+ * is whitelisted on *read* to `description` + `description_auto`
+ * (`computer_cli/profiles.py:read_profile_meta`), so a field invented there is written to
+ * disk and then never read back by anything.
+ *
+ * All four 404 on a profile that does not exist, which is why nothing here is called before
+ * the hire.
+ */
+
+/** One key, narrowed to what the two surfaces reading it actually use. */
+export interface ProfileEnvKey {
+  isSet: boolean
+  /**
+   * Hermes' own answer, not a guess from the name. Absent for a key it has never heard of,
+   * which is why the field is optional at the call site.
+   */
+  isPassword: boolean
+  /** The masked form Hermes computes. `null` for a key with no value on disk. */
+  redactedValue: string | null
+  description: string
+  category: string
+  /** "OpenRouter" — empty for anything the provider catalogue does not recognise. */
+  providerLabel: string
+  /** Tool names that read this key. */
+  tools: string[]
+  /** Owned by the dashboard's Channels page; not this app's to edit. */
+  channelManaged: boolean
+  /** In no catalogue — a key the user added to `.env` directly. */
+  custom: boolean
+}
+
+export type ProfileEnv = Readonly<Record<string, ProfileEnvKey>>
+
+export async function fetchProfileEnv(profile: string): Promise<ProfileEnv> {
+  const rows = await request<HermesEnvResponse>(
+    `/api/env?profile=${encodeURIComponent(profile)}`,
+  )
+
+  return Object.fromEntries(
+    Object.entries(rows).map(([key, row]) => [
+      key,
+      {
+        isSet: row?.is_set === true,
+        isPassword: row?.is_password === true,
+        redactedValue: row?.redacted_value ?? null,
+        description: row?.description ?? '',
+        category: row?.category ?? '',
+        providerLabel: row?.provider_label ?? '',
+        tools: row?.tools ?? [],
+        channelManaged: row?.channel_managed === true,
+        custom: row?.custom === true,
+      },
+    ]),
+  )
+}
+
+export function setProfileEnvVar(
+  profile: string,
+  key: string,
+  value: string,
+): Promise<unknown> {
+  return request('/api/env', {
+    method: 'PUT',
+    body: JSON.stringify({ key, value, profile }),
+  })
+}
+
+/**
+ * Remove a key from the employee's `.env`.
+ *
+ * Deliberately more than a line delete server-side: `remove_provider_env_credential` also
+ * clears env-seeded `credential_pool` entries in `auth.json` and value-matched
+ * `config.yaml` `api_key` mirrors, because a stale higher-precedence copy would otherwise
+ * keep the provider alive in the model picker after the key was "removed". OAuth and
+ * manually-added pool entries for the same provider survive.
+ */
+export function deleteProfileEnvVar(profile: string, key: string): Promise<unknown> {
+  return request('/api/env', {
+    method: 'DELETE',
+    body: JSON.stringify({ key, profile }),
+  })
+}
+
+/**
+ * The real value of one key.
+ *
+ * Hermes gates this three ways — the session token is required outright, reveals are capped
+ * at 5 per 30 seconds process-wide (a 429 past that), and each one is written to the server
+ * log. That is the whole reason the value is not simply included in the listing.
+ */
+export async function revealProfileEnvVar(
+  profile: string,
+  key: string,
+): Promise<string> {
+  const data = await request<{ key: string; value: string }>('/api/env/reveal', {
+    method: 'POST',
+    body: JSON.stringify({ key, profile }),
+  })
+  return data.value
 }

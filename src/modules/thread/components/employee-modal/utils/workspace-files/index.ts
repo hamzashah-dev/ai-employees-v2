@@ -5,6 +5,8 @@ export interface WorkspaceFileRow {
   path: string
   name: string
   isDirectory: boolean
+  /** Bytes. `null` for a directory — `list_managed_files` sends no size for one. */
+  size: number | null
   /** "7:34" today, "Yesterday", a weekday this week, else "Mar 4". */
   timeLabel: string
   timeIso?: string
@@ -32,6 +34,7 @@ export function toWorkspaceFileRows(
         path: entry.path,
         name: entry.name,
         isDirectory: entry.is_directory,
+        size: entry.size,
         timeLabel: date ? formatRosterTime(entry.mtime) : '',
         timeIso: date?.toISOString(),
         sortKey: date?.getTime() ?? 0,

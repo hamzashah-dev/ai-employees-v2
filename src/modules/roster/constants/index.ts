@@ -4,7 +4,6 @@ import { KnowledgeIcon } from '@repo/icons/knowledge-icon'
 import { MeetingCalendarIcon } from '@repo/icons/meeting-calendar-icon'
 import { PeopleIcon } from '@repo/icons/people-icon'
 import { SearchIcon } from '@repo/icons/search'
-import { ShoppingIcon } from '@repo/icons/shopping-icon'
 import { StartNewIcon } from '@repo/icons/start-new-icon'
 import { TimeClockIcon } from '@repo/icons/time-clock-icon'
 import { ToolBoxIcon } from '@repo/icons/tool-box'
@@ -20,10 +19,15 @@ export const SKELETON_ROW_COUNT = 4
 
 /**
  * Route slugs, matching imagine-computer-web's `ABSOLUTE_ROUTES` so the ported
- * nav reads the same. Only `/`, `/employees`, `/employees/:profile`, `/search`,
- * `/marketplace` and `/routines` are mounted in this app today — the remaining
- * default-mode destinations are the surrounding product's and resolve to the
- * catch-all until `src/app` mounts them.
+ * nav reads the same. Only `/`, `/employees`, `/employees/hire/:agentKey`,
+ * `/employees/:profile`, `/search` and `/routines` are mounted in this app today —
+ * the remaining default-mode destinations are the surrounding product's and resolve
+ * to the catch-all until `src/app` mounts them.
+ *
+ * There is no `/marketplace`. Browsing and hiring *is* the Employees page, so the
+ * catalogue lives at `EMPLOYEES` and one agent's detail panel opens over it at
+ * `HIRE/:agentKey`. `hire` is a fixed segment, so it can never be mistaken for a
+ * profile slug by `EMPLOYEES/:profile`.
  */
 export const ROUTES = {
   NEW_CHAT: '/',
@@ -37,17 +41,19 @@ export const ROUTES = {
   SCHEDULED: '/dispatch',
   MEETINGS: '/meetings',
   SEARCH: '/search',
-  MARKETPLACE: '/marketplace',
+  HIRE: '/employees/hire',
   ROUTINES: '/routines',
 } as const
 
 /**
  * Routes that put the sidebar in Employees mode. The Sites mechanism keys off a
- * single root; Employees owns four, so the predicate takes a list.
+ * single root; Employees owns three, so the predicate takes a list.
+ *
+ * `EMPLOYEES` covers the hire panel and every thread too, since the predicate
+ * matches on the root.
  */
 export const EMPLOYEES_ROUTE_ROOTS: string[] = [
   ROUTES.EMPLOYEES,
-  ROUTES.MARKETPLACE,
   ROUTES.SEARCH,
   ROUTES.ROUTINES,
 ]
@@ -109,7 +115,8 @@ export const EMPLOYEES_NAV_ITEMS: RosterNavItem[] = [
   // §4.2: "a **button**, not a link". The modal opens over whatever is on
   // screen, so navigating away from it would be the wrong thing to do.
   { label: 'Search', icon: SearchIcon, onSelect: () => useSearchStore.getState().open() },
-  { to: ROUTES.MARKETPLACE, label: 'Marketplace', icon: ShoppingIcon },
+  // No Marketplace row: `Employees` above *is* the marketplace now, and two rows
+  // pointing at one page reads as two places.
 ]
 
 /** Pinned under the roster: routines belong to the team, not to one employee. */

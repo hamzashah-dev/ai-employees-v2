@@ -98,7 +98,7 @@ export const AgentCard: FC<AgentCardProps> = ({ agent, installed }) => {
         competes with the link's.
       */}
       <Link
-        to={`${ROUTES.MARKETPLACE}/${agent.id}`}
+        to={`${ROUTES.HIRE}/${agent.id}`}
         aria-label={agent.name}
         className="absolute inset-0 z-10 rounded-2xl focus-visible:ring-2 focus-visible:ring-brand focus-visible:outline-none"
       />

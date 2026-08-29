@@ -61,7 +61,9 @@ describe('MarketplaceView', () => {
     await mount()
 
     const link = screen.getByRole('link', { name: 'Inbox Triage' })
-    expect(link).toHaveAttribute('href', '/marketplace/inbox-triage')
+    // `/employees/hire/:agentKey` — a real mounted route. This used to point at
+    // `/marketplace/:id`, which was never mounted and fell through to the catch-all.
+    expect(link).toHaveAttribute('href', '/employees/hire/inbox-triage')
     // A button inside an anchor is invalid HTML and eats the keyboard, so the
     // two have to be siblings.
     expect(within(link).queryByRole('button')).toBeNull()

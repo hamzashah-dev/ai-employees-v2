@@ -20,6 +20,11 @@ interface ColorSwatchesProps {
  * material. Writing them as arbitrary Tailwind colour values would be the banned thing;
  * reading them from the one constant that owns the palette is not.
  *
+ * The chosen swatch is ringed with a two-step shadow — a gap in the tray's own colour, then
+ * white — rather than an `outline`. Against eleven hues, several of which are pale, a single
+ * ring drawn directly on the swatch edge disappears into Snow and Slate; the dark gap gives
+ * it something to sit against at every hue.
+ *
  * A radiogroup rather than eleven buttons: picking a colour is picking *one of* a set, and
  * arrow-key navigation between them comes free from the role.
  */
@@ -27,7 +32,7 @@ export const ColorSwatches: FC<ColorSwatchesProps> = ({ activeIndex, onSelect })
   <div
     role="radiogroup"
     aria-label="Avatar colour"
-    className="flex max-w-40 flex-wrap items-center gap-1.5"
+    className="flex flex-wrap items-center gap-2"
   >
     {IDENTITY_COLORS.map((color, index) => (
       <button
@@ -39,10 +44,11 @@ export const ColorSwatches: FC<ColorSwatchesProps> = ({ activeIndex, onSelect })
         onClick={() => onSelect(index)}
         style={{ backgroundColor: color }}
         className={cn(
-          'size-5 shrink-0 rounded-full outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-primary',
-          // The ring on the chosen swatch is `border-inverse`, the one ring colour with
-          // enough contrast to read against all eleven hues in both themes.
-          { 'ring-2 ring-inverse': index === activeIndex },
+          'size-[22px] shrink-0 rounded-full outline-none',
+          'focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+          // `0 0 0 2px #171717, 0 0 0 4px #fff` from the canvas: a gap in the *card's*
+          // colour, then white. `ring-offset` paints the gap, `ring` the white.
+          { 'ring-2 ring-inverse ring-offset-2 ring-offset-surface': index === activeIndex },
         )}
       />
     ))}
@@ -64,9 +70,9 @@ export const ColorSwatches: FC<ColorSwatchesProps> = ({ activeIndex, onSelect })
         type="button"
         disabled
         aria-label="Add a colour — the palette is fixed to these eleven hues"
-        className="flex size-5 shrink-0 items-center justify-center rounded-full border border-secondary text-tertiary"
+        className="flex size-[22px] shrink-0 items-center justify-center rounded-full border border-secondary-hover text-tertiary"
       >
-        <PlusIcon className="size-3" />
+        <PlusIcon className="size-3 stroke-[1.4px]" />
       </button>
     </WithTooltip>
   </div>

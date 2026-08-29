@@ -9,7 +9,10 @@ import { useEmployeeProfile } from '@/modules/core/hooks/use-employee-profile'
 import { useChatStore } from '@/modules/core/stores/chat-store'
 import { ConnectorsSection } from './components/connectors-section'
 import { FilesSection } from './components/files-section'
-import { IdentityHeader } from './components/identity-header'
+import { InfoPage } from './components/info-page'
+import { ModalRail } from './components/modal-rail'
+import { VaultsSection } from './components/vaults-section'
+import { useEmployeeCard } from './hooks/use-employee-card'
 import { useIdentityEditor } from './hooks/use-identity-editor'
 import { describeEmployeeState } from './utils/employee-state'
 
@@ -22,23 +25,44 @@ export interface EmployeeModalProps {
 /**
  * The employee card, opened by clicking the identity in the thread header.
  *
- * Three blocks, in descending order of how much of them is real:
+ * Four pages behind a left rail, in descending order of how much of them is real:
  *
- * - **Identity** is entirely local. Hermes stores no avatar, colour or display name and has
- *   nowhere to put one (`stores/identity-store` has the receipts), so these are per-device
- *   presentation state and the modal says so while you are editing.
- * - **Connectors** are the profile's MCP servers, listed and toggled against live
- *   endpoints. Brand icons and sign-in state are the two things the payload does not carry.
+ * - **Info** is who this is, plus a summary of the other three. Identity is entirely local:
+ *   Hermes stores no avatar, colour or display name and has nowhere to put one
+ *   (`stores/identity-store` has the receipts), so those are per-device presentation state
+ *   and the page says so. The model picker beside them is the one thing that writes to disk.
  * - **Files** are a real directory listing of `<profile.path>/workspace`, newest first,
  *   with no per-file attribution because Hermes keeps none.
+ * - **Connectors** are the profile's MCP servers, listed and toggled against live
+ *   endpoints. Sign-in state is the one thing the payload does not carry.
+ * - **Vaults** are the employee's own `.env`, read and written through `/api/env` under
+ *   `_profile_scope` — the only per-employee credential store Hermes has.
  */
 export const EmployeeModal: FC<EmployeeModalProps> = ({
   profile,
   open,
   onOpenChange,
-}) => {
+}) => (
+  <Dialog open={open} onOpenChange={onOpenChange}>
+    {/* `aria-describedby={undefined}` is Radix's way of saying there is no description,
+        rather than leaving it to warn about the missing one. */}
+    <DialogContent
+      aria-describedby={undefined}
+      className="max-w-[720px] gap-0 overflow-hidden rounded-3xl border-secondary bg-surface p-0 shadow-lg"
+    >
+      {/* Mounted only while open, so the card always reopens on Info and a revealed
+          credential never survives a close. Radix unmounts the portal on close; keeping the
+          page state out here would defeat both. */}
+      <EmployeeCard profile={profile} />
+    </DialogContent>
+  </Dialog>
+)
+
+const EmployeeCard: FC<{ profile: string }> = ({ profile }) => {
   const editor = useIdentityEditor(profile)
   const { data: employee } = useEmployeeProfile(profile)
+  const model = employee?.model?.trim() || null
+  const card = useEmployeeCard(profile, model)
 
   const status = useChatStore((state) => state.threads[profile]?.status)
   const statusText = useChatStore((state) => state.threads[profile]?.statusText)
@@ -47,36 +71,54 @@ export const EmployeeModal: FC<EmployeeModalProps> = ({
   const state = describeEmployeeState(status, connection)
 
   /*
-   * The secondary half of the state line. `status.update` text when there is a live turn to
-   * describe, otherwise the model the profile runs on — and failing that the slug, which
-   * after a rename is the only place the name Hermes knows is still visible.
+   * The middle of the state line: what the employee is doing right now, if anything.
+   *
+   * This used to fall back to the model and then to the slug, because the model had nowhere
+   * else to live. It has its own control now, so the fallbacks are gone — a slug repeated
+   * under the name it was already rendered from said nothing, and the model reading as
+   * activity text made a static fact look like a live one.
    */
-  const detail = statusText?.trim() || employee?.model?.trim() || profile
+  const detail = statusText?.trim() ?? ''
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* `aria-describedby={undefined}` is Radix's way of saying there is no description,
-          rather than leaving it to warn about the missing one. */}
-      <DialogContent
-        aria-describedby={undefined}
-        className="max-w-[560px] gap-0 rounded-3xl bg-surface p-0"
-      >
-        <div className="flex shrink-0 items-center justify-between px-6 pt-5">
-          <DialogTitle className="text-label-sm text-secondary">Employee</DialogTitle>
-          <DialogCloseButton className="text-secondary" />
-        </div>
+    <div className="flex max-h-[684px] min-h-96">
+      <div className="flex shrink-0 flex-col gap-3 border-r border-primary p-3 tablet:w-44">
+        <DialogTitle className="sr-only px-2.5 pt-1 text-label-sm text-secondary tablet:not-sr-only">
+          Employee
+        </DialogTitle>
+        <ModalRail active={card.page} onSelect={card.setPage} counts={card.counts} />
+      </div>
 
-        <div className="scrollbar-minimal flex max-h-[70vh] flex-col gap-6 overflow-y-auto px-6 pt-4 pb-6">
-          <IdentityHeader
-            profile={profile}
-            state={state}
-            detail={detail}
-            editor={editor}
-          />
-          <ConnectorsSection profile={profile} />
-          <FilesSection profile={profile} displayName={editor.displayName} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex shrink-0 items-center justify-between gap-2 px-5 pt-5 pb-1">
+          <h2 className="truncate text-label-lg text-primary">{card.title}</h2>
+          <DialogCloseButton className="rounded-[10px] text-secondary" />
+        </header>
+
+        <div className="scrollbar-minimal flex-1 overflow-y-auto px-5 pt-3 pb-6">
+          {card.page === 'info' && (
+            <InfoPage
+              profile={profile}
+              state={state}
+              detail={detail}
+              model={model}
+              editor={editor}
+              tiles={card.tiles}
+              recent={card.recent}
+              totalFiles={card.totalFiles}
+              filesLoading={card.filesLoading}
+              onSelect={card.setPage}
+            />
+          )}
+          {card.page === 'files' && (
+            <FilesSection profile={profile} displayName={editor.displayName} />
+          )}
+          {card.page === 'connectors' && <ConnectorsSection profile={profile} />}
+          {card.page === 'vaults' && (
+            <VaultsSection profile={profile} displayName={editor.displayName} />
+          )}
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   )
 }

@@ -5,9 +5,9 @@ import { LinkIcon } from '@repo/icons/link-icon'
 import { Button } from '@repo/ui/button'
 import { cn } from '@repo/ui/cn'
 import { WithTooltip } from '@repo/ui/tooltip'
+import { profileEnvKey } from '@/modules/core/hooks/use-profile-env'
+import { setProfileEnvVar } from '@/modules/core/services/hermes/rest'
 import { Spinner } from '@/modules/core/components/spinner'
-import { profileEnvKey } from '../../hooks/use-agent-detail'
-import { setProfileEnvVar } from '../../services/profile-env'
 import type { RequirementRow as Row } from '../../utils/requirements'
 
 /**

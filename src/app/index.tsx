@@ -27,8 +27,8 @@ import { ROUTES } from '@/modules/roster/constants'
 
 /**
  * The thread is the view people land in from the roster, so it stays in the main bundle.
- * The panel, marketplace and dashboard are opened deliberately and carry the heavier
- * dependencies (markdown rendering, the catalog), so they load on demand.
+ * The panel and the catalogue are opened deliberately and carry the heavier dependencies
+ * (markdown rendering, the catalog), so they load on demand.
  */
 const ThreadView = lazy(() =>
   import('@/modules/thread').then((m) => ({ default: m.ThreadView })),
@@ -42,8 +42,10 @@ const EmployeePanel = lazy(() =>
 const MarketplaceView = lazy(() =>
   import('@/modules/marketplace').then((m) => ({ default: m.MarketplaceView })),
 )
-const DashboardView = lazy(() =>
-  import('@/modules/dashboard').then((m) => ({ default: m.DashboardView })),
+const AgentDetailView = lazy(() =>
+  import('@/modules/marketplace/usecases/agent-detail').then((m) => ({
+    default: m.AgentDetailView,
+  })),
 )
 
 interface PageProps {
@@ -174,25 +176,41 @@ const Shell: FC = () => {
                   </Page>
                 }
               />
+              {/*
+                Employees *is* the catalogue. There is no separate marketplace page and no
+                roster dashboard: the sidebar already lists the team, so a page that listed
+                it again was the emptiest surface in the app, and the one thing you actually
+                come here to do is hire.
+              */}
               <Route
                 path={ROUTES.EMPLOYEES}
                 element={
                   <Page title="Employees" onOpenSidebar={openSidebar}>
-                    <DashboardView />
+                    <MarketplaceView />
+                  </Page>
+                }
+              />
+              {/*
+                One agent's detail, over a dimmed catalogue — which is why both render here
+                rather than the panel replacing the grid. `AgentDetailView` portals through
+                `Dialog`, so the mount point does not affect where it paints.
+
+                `hire` is a fixed segment, so this can never be shadowed by `:profile`
+                below; React Router ranks a static segment above a dynamic one, and the two
+                patterns differ in length anyway.
+              */}
+              <Route
+                path={`${ROUTES.HIRE}/:agentKey`}
+                element={
+                  <Page title="Employees" onOpenSidebar={openSidebar}>
+                    <MarketplaceView />
+                    <AgentDetailView />
                   </Page>
                 }
               />
               <Route
                 path={`${ROUTES.EMPLOYEES}/:profile`}
                 element={<EmployeeRoute onOpenSidebar={openSidebar} />}
-              />
-              <Route
-                path={ROUTES.MARKETPLACE}
-                element={
-                  <Page title="Marketplace" onOpenSidebar={openSidebar}>
-                    <MarketplaceView />
-                  </Page>
-                }
               />
 
               {/*

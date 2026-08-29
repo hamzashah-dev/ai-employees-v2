@@ -100,3 +100,20 @@
     rgb(var(--content-tertiary)) 55%
   );
 }
+
+/*
+ * `ring-offset-surface` — the gap between a ring and what it rings, painted in the card's
+ * own colour.
+ *
+ * Tailwind resolves `ring-offset-<color>` out of the `--color-*` namespace, and this token
+ * layer publishes its surfaces under `--background-color-*` instead, so `ring-offset-surface`
+ * generates a rule with no colour in it and the offset silently falls back to white. That
+ * matters for the colour swatches: the canvas rings the chosen hue with
+ * `0 0 0 2px #171717, 0 0 0 4px #fff` — a dark gap, *then* white — and without the gap the
+ * two collapse into one 4px white ring that disappears against Snow.
+ *
+ * Bound to the token rather than a literal so it follows the theme.
+ */
+@utility ring-offset-surface {
+  --tw-ring-offset-color: var(--background-color-surface);
+}

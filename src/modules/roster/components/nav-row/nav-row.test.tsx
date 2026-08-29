@@ -85,13 +85,13 @@ describe('NavRow', () => {
   })
 
   it('names the row in a tooltip when the sidebar is a rail', async () => {
-    renderRow('Marketplace', true)
+    renderRow('Employees', true)
 
     // The label itself is gone from the row — the rail is icons only.
-    expect(screen.queryByText('Marketplace')).not.toBeInTheDocument()
+    expect(screen.queryByText('Employees')).not.toBeInTheDocument()
 
     await userEvent.hover(screen.getByRole('link'))
 
-    expect(await screen.findAllByText('Marketplace')).not.toHaveLength(0)
+    expect(await screen.findAllByText('Employees')).not.toHaveLength(0)
   })
 })

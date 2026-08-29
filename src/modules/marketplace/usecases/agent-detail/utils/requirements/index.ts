@@ -1,5 +1,5 @@
 import type { AgentRequirement } from '../../../../constants/catalog'
-import type { ProfileEnv } from '../../services/profile-env'
+import type { ProfileEnv } from '@/modules/core/services/hermes/rest'
 
 /**
  * Whether the backend can answer this row, and what it answered.

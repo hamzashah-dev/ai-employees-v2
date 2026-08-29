@@ -1,20 +1,16 @@
 import { useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useProfileEnv } from '@/modules/core/hooks/use-profile-env'
 import { ROUTES } from '@/modules/roster/constants'
 import type { CatalogAgent } from '../../../../constants/catalog'
 import { useInstallAgent } from '../../../../hooks/use-install-agent'
 import { useInstalledAgents } from '../../../../hooks/use-installed-agents'
-import { fetchProfileEnv } from '../../services/profile-env'
 import {
   firstOutstanding,
   progressLabel,
   summariseRequirements,
   type RequirementSummary,
 } from '../../utils/requirements'
-
-/** The query key the requirement rows invalidate after a successful write. */
-export const profileEnvKey = (profile: string): [string, string] => ['profile-env', profile]
 
 export interface AgentDetail {
   /** On the roster already — either from before, or from the hire just made. */
@@ -69,12 +65,7 @@ export function useAgentDetail(agent: CatalogAgent): AgentDetail {
    * retry. `summariseRequirements` reads `undefined` as "no store yet", which is
    * the same answer a brand-new profile gives.
    */
-  const env = useQuery({
-    queryKey: profileEnvKey(agent.id),
-    queryFn: () => fetchProfileEnv(agent.id),
-    enabled: employed,
-    staleTime: 10_000,
-  })
+  const env = useProfileEnv(agent.id, { enabled: employed })
 
   const summary = useMemo(
     () => summariseRequirements(agent.requirements, env.data),
@@ -122,7 +113,7 @@ export function useAgentDetail(agent: CatalogAgent): AgentDetail {
     envError: env.isError ? env.error.message || 'Could not read its keys.' : undefined,
     progress: progressLabel(summary),
     focusName: firstOutstanding(summary)?.requirement.name,
-    close: () => navigate(ROUTES.MARKETPLACE),
+    close: () => navigate(ROUTES.EMPLOYEES),
     openThread,
   }
 }

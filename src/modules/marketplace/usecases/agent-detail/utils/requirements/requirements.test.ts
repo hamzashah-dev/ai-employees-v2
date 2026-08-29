@@ -1,10 +1,29 @@
 import { describe, expect, it } from 'vitest'
+import type { ProfileEnvKey } from '@/modules/core/services/hermes/rest'
 import type { AgentRequirement } from '../../../../constants/catalog'
 import {
   firstOutstanding,
   progressLabel,
   summariseRequirements,
 } from '.'
+
+/**
+ * A key-store row with only the two fields this summary reads.
+ *
+ * `ProfileEnvKey` carries the Vaults page's fields too — masked value, origin, tools — and
+ * spelling those out in every fixture would say that this function depends on them.
+ */
+const key = (isSet: boolean, isPassword: boolean): ProfileEnvKey => ({
+  isSet,
+  isPassword,
+  redactedValue: null,
+  description: '',
+  category: '',
+  providerLabel: '',
+  tools: [],
+  channelManaged: false,
+  custom: false,
+})
 
 const REQUIREMENTS: AgentRequirement[] = [
   {
@@ -36,8 +55,8 @@ describe('summariseRequirements', () => {
 
   it('reads satisfied straight off the key store', () => {
     const summary = summariseRequirements(REQUIREMENTS, {
-      SLACK_BOT_TOKEN: { isSet: true, isPassword: true },
-      EXPENSE_SHEET_ID: { isSet: false, isPassword: false },
+      SLACK_BOT_TOKEN: key(true, true),
+      EXPENSE_SHEET_ID: key(false, false),
     })
 
     expect(summary.answered).toBe(1)
@@ -48,7 +67,7 @@ describe('summariseRequirements', () => {
 
   it('carries Hermes’ own is_password rather than guessing from the name', () => {
     const summary = summariseRequirements(REQUIREMENTS, {
-      SLACK_BOT_TOKEN: { isSet: false, isPassword: true },
+      SLACK_BOT_TOKEN: key(false, true),
     })
 
     expect(summary.rows[1]?.isPassword).toBe(true)
@@ -57,8 +76,8 @@ describe('summariseRequirements', () => {
 
   it('clears held once every checkable row is answered, ignoring the connector', () => {
     const summary = summariseRequirements(REQUIREMENTS, {
-      SLACK_BOT_TOKEN: { isSet: true, isPassword: true },
-      EXPENSE_SHEET_ID: { isSet: true, isPassword: false },
+      SLACK_BOT_TOKEN: key(true, true),
+      EXPENSE_SHEET_ID: key(true, false),
     })
 
     expect(summary.held).toBe(false)

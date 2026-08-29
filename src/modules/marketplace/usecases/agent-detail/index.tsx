@@ -28,7 +28,7 @@ const CONNECTOR_NOTE =
   'Whether these are connected is not something this build can tell you: Hermes keeps no connector store. What an agent actually gets is the keys below.'
 
 /**
- * D17 — the agent detail surface, at `/marketplace/:agentKey`.
+ * D17 — the agent detail surface, at `/employees/hire/:agentKey`.
  *
  * Mounted alongside the grid rather than in place of it, so the panel sits over
  * a dimmed marketplace exactly as the artboard draws it. `Dialog` portals, which
@@ -264,7 +264,7 @@ const UnknownAgent: FC<{ agentKey?: string }> = ({ agentKey }) => {
   const navigate = useNavigate()
 
   return (
-    <Panel onClose={() => navigate(ROUTES.MARKETPLACE)}>
+    <Panel onClose={() => navigate(ROUTES.EMPLOYEES)}>
       <div className="flex flex-col gap-2 p-6">
         <DialogTitle className="text-heading-sm font-medium text-primary">
           No such agent
@@ -272,7 +272,7 @@ const UnknownAgent: FC<{ agentKey?: string }> = ({ agentKey }) => {
         <DialogDescription className="text-body-md text-secondary">
           {agentKey
             ? `Nothing in the catalogue is called “${agentKey}”.`
-            : 'Pick an agent from the marketplace.'}
+            : 'Pick an agent from the catalogue.'}
         </DialogDescription>
       </div>
     </Panel>

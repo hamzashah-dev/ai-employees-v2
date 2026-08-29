@@ -108,6 +108,24 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), hermesDevToken(), verifyBackend()],
   resolve: {
     /**
+     * One React, whatever the install looks like.
+     *
+     * This app is a workspace of `cloud-computer-hermes`, which has its own `react` at the
+     * repo root — and a *different* patch of it (19.2.7 there against the 19.2.0 pinned
+     * here). Anything that resolves from the root `node_modules` rather than this one
+     * therefore gets a second copy of React, and the first Radix popper to call `useState`
+     * dies on a null dispatcher: "Invalid hook call … more than one copy of React".
+     *
+     * That happened for real, via `@radix-ui/react-popper` → `@floating-ui/react-dom`, and
+     * it presents confusingly — the tooltip in a sidebar `NavRow` throws on a route change,
+     * which looks like a routing bug rather than a resolution one.
+     *
+     * `dedupe` collapses every `react` / `react-dom` specifier onto a single copy, so the
+     * hoisting layout stops mattering. Keep it even if the versions are aligned later:
+     * the next dependency added at the root would silently reintroduce the split.
+     */
+    dedupe: ['react', 'react-dom'],
+    /**
      * `@repo/*` mirrors the monorepo package specifiers so that ported code imports
      * exactly as it does in imagine-computer-web (`@repo/icons/search`). On the way back
      * into the monorepo the real workspace packages take over and no import line changes.

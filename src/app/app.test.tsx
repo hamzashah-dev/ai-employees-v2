@@ -211,16 +211,71 @@ describe('App', () => {
     expect(await screen.findByText('8 filed, 1 with your note')).toBeInTheDocument()
   })
 
-  it('lands on the Employees dashboard, not a thread', async () => {
+  it('lands on the catalogue, not a thread', async () => {
     window.history.pushState({}, '', '/employees')
     vi.stubGlobal('fetch', stubFetch([profile('ad-creator')]))
 
     render(<App />)
 
-    // D3 gives the Employees destination a dashboard of its own, so it no longer
-    // redirects into whichever thread you had open last.
-    expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument()
+    // Employees *is* the catalogue: the sidebar already lists the team, so the page
+    // behind the destination is the one thing you come here to do — hire. It does not
+    // redirect into whichever thread you had open last either.
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Agent Marketplace' }),
+    ).toBeInTheDocument()
     expect(window.location.pathname).toBe('/employees')
+  })
+
+  it('opens one agent’s detail over the catalogue at the hire route', async () => {
+    window.history.pushState({}, '', '/employees/hire/inbox-triage')
+    vi.stubGlobal('fetch', stubFetch([profile('ad-creator')]))
+
+    render(<App />)
+
+    // Both render: the panel is a portalled Dialog sitting over a dimmed grid, which is
+    // why the route mounts the catalogue underneath it rather than replacing it.
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    /*
+     * Queried out of the document rather than by role: an open Radix dialog `aria-hidden`s
+     * everything behind it, so the catalogue is on screen but out of the accessibility
+     * tree. That is the correct behaviour, and it is exactly what proves the two are
+     * layered rather than one having replaced the other.
+     */
+    expect(document.querySelector('h1')).toHaveTextContent('Agent Marketplace')
+  })
+
+  it('answers an unknown agent key rather than falling through to the catch-all', async () => {
+    window.history.pushState({}, '', '/employees/hire/not-a-real-agent')
+    vi.stubGlobal('fetch', stubFetch([profile('ad-creator')]))
+
+    render(<App />)
+
+    expect(await screen.findByText('No such agent')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/employees/hire/not-a-real-agent')
+  })
+
+  it('keeps `hire` from being read as a profile slug', async () => {
+    // `/employees/:profile` would happily match `hire` and open a thread for a profile
+    // that does not exist. The three-segment hire route is what stops it.
+    window.history.pushState({}, '', '/employees/hire/inbox-triage')
+    vi.stubGlobal('fetch', stubFetch([profile('ad-creator')]))
+
+    render(<App />)
+
+    await screen.findByRole('dialog')
+    // The thread's own header would name the employee; the catalogue has no such heading.
+    expect(screen.queryByRole('button', { name: /About hire/ })).not.toBeInTheDocument()
+  })
+
+  it('has no /marketplace route left', async () => {
+    window.history.pushState({}, '', '/marketplace')
+    vi.stubGlobal('fetch', stubFetch([profile('ad-creator')]))
+
+    render(<App />)
+
+    // Falls through to the catch-all like any other unknown path.
+    await screen.findByText('Sites')
+    expect(window.location.pathname).toBe('/')
   })
 
   it('surfaces a roster failure instead of rendering an empty shell', async () => {
