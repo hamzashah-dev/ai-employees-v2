@@ -16,7 +16,7 @@ import { WithTooltip } from '@repo/ui/tooltip'
 import { AgentBlob } from '@/modules/core/components/agent-blob'
 import { Spinner } from '@/modules/core/components/spinner'
 import { ROUTES } from '@/modules/roster/constants'
-import { CATALOG, type CatalogAgent } from '../../constants/catalog'
+import { AVAILABLE_CATALOG, type CatalogAgent } from '../../constants/catalog'
 import type { Connector } from '../../constants/connectors'
 import { RequirementRow } from './components/requirement-row'
 import { useAgentDetail } from './hooks/use-agent-detail'
@@ -40,7 +40,7 @@ const CONNECTOR_NOTE =
  */
 export const AgentDetailView: FC = () => {
   const { agentKey } = useParams<{ agentKey: string }>()
-  const agent = CATALOG.find(({ id }) => id === agentKey)
+  const agent = AVAILABLE_CATALOG.find(({ id }) => id === agentKey)
 
   if (!agent) return <UnknownAgent agentKey={agentKey} />
 

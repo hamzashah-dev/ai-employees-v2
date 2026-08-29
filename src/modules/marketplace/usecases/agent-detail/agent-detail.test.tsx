@@ -26,38 +26,38 @@ const renderAt = (path: string) =>
 
 describe('AgentDetailView', () => {
   it('draws the four blocks and the hire footer', () => {
-    renderAt('/marketplace/expense-manager')
+    renderAt('/marketplace/linkedin-agent')
 
-    expect(screen.getByRole('heading', { name: 'Expense Manager' })).toBeInTheDocument()
-    expect(screen.getByText('Money')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'LinkedIn Agent' })).toBeInTheDocument()
+    expect(screen.getByText('Growth & Marketing')).toBeInTheDocument()
 
     for (const block of ['What it does', 'Connects to', 'Needs from you', 'How it works']) {
       expect(screen.getByRole('heading', { name: block })).toBeInTheDocument()
     }
 
     expect(screen.getByRole('button', { name: 'Hire' })).toBeEnabled()
-    expect(screen.getByText(/2,871 runs/)).toBeInTheDocument()
+    expect(screen.getByText(/0 runs/)).toBeInTheDocument()
   })
 
   it('offers no live control for anything the backend cannot serve', () => {
-    renderAt('/marketplace/expense-manager')
+    renderAt('/marketplace/linkedin-agent')
 
     expect(
       screen.getByRole('button', { name: /Preview a run — not available/ }),
     ).toBeDisabled()
     expect(
-      screen.getByRole('button', { name: /Connect Gmail account — not available/ }),
+      screen.getByRole('button', { name: /Connect LinkedIn profile — not available/ }),
     ).toBeDisabled()
   })
 
   it('locks the key fields until there is an employee to store them on', () => {
-    renderAt('/marketplace/expense-manager')
+    renderAt('/marketplace/linkedin-agent')
 
-    expect(screen.getByLabelText(/SLACK_BOT_TOKEN — added after you hire/)).toBeDisabled()
+    expect(screen.getByLabelText(/BRAND_VOICE — added after you hire/)).toBeDisabled()
   })
 
   it('says so rather than half-rendering an agent with no published detail', () => {
-    renderAt('/marketplace/expense-clerk')
+    renderAt('/marketplace/ad-creator')
 
     expect(screen.getByText(/no published detail yet/)).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'What it does' })).not.toBeInTheDocument()

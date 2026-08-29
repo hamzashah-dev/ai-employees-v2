@@ -7,6 +7,7 @@ import type {
   HermesFileListing,
   HermesManagedFile,
   HermesProfile,
+  HermesProfileInstallResult,
   HermesProfilesResponse,
   HermesMcpServer,
   HermesMcpServersResponse,
@@ -109,6 +110,32 @@ export function updateProfileSoul(name: string, content: string): Promise<unknow
 
 export function deleteProfile(name: string): Promise<unknown> {
   return request(`/api/profiles/${encodeURIComponent(name)}`, { method: 'DELETE' })
+}
+
+/**
+ * Hire an agent from a distribution pack — the declarative alternative to
+ * `createProfile` + `updateProfileSoul`.
+ *
+ * `source` is a pack directory in the Computer repo (`agents/linkedin-agent`)
+ * or a git URL; the pack's `distribution.yaml` supplies the name, description,
+ * model, SOUL.md and skills, so an agent's identity lives in a reviewable file
+ * rather than in this client. One call instead of two, and `force: true`
+ * re-installs in place without touching the agent's memories, sessions, auth
+ * or `.env`.
+ *
+ * `env_requires` in the response is what the agent still needs before it can
+ * work — render it as the post-hire setup list.
+ */
+export function installProfile(body: {
+  source: string
+  name?: string
+  force?: boolean
+  create_alias?: boolean
+}): Promise<HermesProfileInstallResult> {
+  return request<HermesProfileInstallResult>('/api/profiles/install', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 }
 
 // ---------------------------------------------------------------- sessions

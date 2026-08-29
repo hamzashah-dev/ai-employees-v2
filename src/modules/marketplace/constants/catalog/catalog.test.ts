@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CATALOG } from '.'
+import { AVAILABLE_AGENT_IDS, AVAILABLE_CATALOG, CATALOG } from '.'
 import { AGENT_CATEGORIES } from '../categories'
 import { CONNECTORS } from '../connectors'
 
@@ -139,5 +139,16 @@ describe('CATALOG', () => {
         }
       }
     }
+  })
+
+  it('gates the shelf to ids that exist, so a typo cannot silently shorten it', () => {
+    for (const id of AVAILABLE_AGENT_IDS) {
+      expect(
+        CATALOG.some((agent) => agent.id === id),
+        `${id} is in AVAILABLE_AGENT_IDS but has no catalog entry`,
+      ).toBe(true)
+    }
+
+    expect(AVAILABLE_CATALOG).toHaveLength(AVAILABLE_AGENT_IDS.size)
   })
 })

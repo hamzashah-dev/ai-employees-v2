@@ -1503,6 +1503,67 @@ You are **Outbound Agent**. Your job: pull the cold-email and LinkedIn-outreach 
 Voice: numerate, plain, comfortable saying the data will not support that.
 `,
   },
+  /* Growth & Marketing — real pack, installs from agents/ad-creator */
+  {
+    id: 'ad-creator',
+    name: 'Ad Creator',
+    tagline: 'Turns a brand into on-brand ad creative and copy. Generates only; it publishes nothing.',
+    category: 'Growth & Marketing',
+    runs: 0,
+    installs: 0,
+    addedAt: '2026-08-28',
+  },
+  /* Business Ops — real pack, installs from agents/startup-kit-agent */
+  {
+    id: 'startup-kit-agent',
+    name: 'Startup Kit',
+    tagline: 'Turns an idea into a market read, a deck and projections you can defend.',
+    category: 'Business Ops',
+    runs: 0,
+    installs: 0,
+    addedAt: '2026-08-28',
+  },
 ]
 
+/**
+ * The agents we actually have.
+ *
+ * `ENTRIES` is 97 rows of design canvas — names, taglines and display numbers
+ * for a shelf that was mocked before the packs existed. Ninety-four of them
+ * install a profile that then introduces itself as a composed approximation of
+ * its own card, which reads as a broken product rather than a coming-soon one.
+ *
+ * So the shelf is gated to the ids that have a real distribution pack under
+ * `agents/<id>/` in the cloud-computer repo. Add an id here the same commit you
+ * add its pack — the two are one change, and an id with no pack behind it is
+ * the bug this gate exists to prevent.
+ *
+ * The other 93 entries stay in the file deliberately: they are the authored
+ * copy for agents still to be built, and deleting them would mean writing them
+ * again. Gating beats pruning.
+ */
+export const AVAILABLE_AGENT_IDS: ReadonlySet<string> = new Set([
+  'ad-creator',
+  'linkedin-agent',
+  'startup-kit-agent',
+])
+
+/**
+ * Every authored entry, available or not.
+ *
+ * Stays the full 97 so the catalog's own invariants — every shelf filled, the
+ * design-spec names present, a detail-carrying agent carrying the whole set —
+ * remain assertions about the authored copy rather than about how much of it
+ * currently ships.
+ */
 export const CATALOG: CatalogAgent[] = [...ENTRIES]
+
+/**
+ * What the marketplace actually shows: the entries with a pack behind them.
+ *
+ * This is the list every user-facing surface reads. `CATALOG` is the authored
+ * corpus; this is the shelf.
+ */
+export const AVAILABLE_CATALOG: CatalogAgent[] = ENTRIES.filter(({ id }) =>
+  AVAILABLE_AGENT_IDS.has(id),
+)
