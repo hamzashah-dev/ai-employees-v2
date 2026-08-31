@@ -1,5 +1,14 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import { fetchSidebarSessions, fetchProfiles, fetchCronJobs } from './rest'
+import {
+  fetchSidebarSessions,
+  fetchProfiles,
+  fetchCronJobs,
+  fetchSystemStatus,
+  fetchGlobalEnv,
+  fetchProfileEnv,
+  fetchMemoryFile,
+  saveMemoryFile,
+} from './rest'
 
 /**
  * These assert against the payload shapes the live dashboard actually returns,
@@ -126,5 +135,166 @@ describe('fetchCronJobs', () => {
 
     // Omitting the profile silently reads the launch profile's jobs.
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain('profile=ad-creator')
+  })
+})
+
+/**
+ * Trimmed from the live `/api/status` at `:9121`. Every key here was present on
+ * that payload — including the four the Settings System card needs and cannot
+ * get anywhere else (`env_path`, `profiles`, `disk`, `install_id`).
+ */
+const REAL_STATUS = {
+  version: '0.20.6',
+  gateway_running: true,
+  gateway_state: 'running',
+  profiles: ['default', 'ad-creator', 'chief-of-staff'],
+  disk: { pressure: 'ok', total_mb: 471_482, free_mb: 188_613, used_percent: 60 },
+  install_id: 'a1b2c3d4e5f60718293a4b5c6d7e8f90',
+  computer_home: '/Users/dev/.computer',
+  env_path: '/Users/dev/.computer/.env',
+  overall: 'degraded',
+}
+
+function recordingFetch(body: unknown, status = 200) {
+  return vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+    jsonResponse(body, status),
+  )
+}
+
+describe('fetchSystemStatus', () => {
+  it('asks the unscoped endpoint, because the card describes the machine', async () => {
+    const fetchMock = recordingFetch(REAL_STATUS)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const status = await fetchSystemStatus()
+
+    const [url, init] = fetchMock.mock.calls[0] ?? []
+    expect(String(url)).toContain('/api/status')
+    // `?profile=` would repoint the gateway readout at one employee's state file.
+    expect(String(url)).not.toContain('profile=')
+    expect(init?.method ?? 'GET').toBe('GET')
+    expect(status.version).toBe('0.20.6')
+    expect(status.profiles).toEqual(['default', 'ad-creator', 'chief-of-staff'])
+    expect(status.env_path).toBe('/Users/dev/.computer/.env')
+    expect(status.disk?.free_mb).toBe(188_613)
+    expect(status.disk?.pressure).toBe('ok')
+  })
+
+  it('reads a gated bind, where the host paths are absent rather than empty', async () => {
+    // On a non-loopback bind `get_status` omits computer_home / env_path / the
+    // gateway pid entirely. A 200 with those keys missing is the normal answer,
+    // so the card must render "unavailable", not an empty path.
+    const { computer_home: _home, env_path: _env, install_id: _id, ...gated } = REAL_STATUS
+    vi.stubGlobal('fetch', recordingFetch(gated))
+
+    const status = await fetchSystemStatus()
+
+    expect(status.computer_home).toBeUndefined()
+    expect(status.env_path).toBeUndefined()
+    expect(status.install_id).toBeUndefined()
+    expect(status.gateway_running).toBe(true)
+  })
+
+  it('leaves an unreadable disk sample unknown instead of zero', async () => {
+    // The status route's own `except` path answers `{pressure: 'unknown'}` with
+    // no number keys at all — "we could not read it", never "0 MB free".
+    vi.stubGlobal('fetch', recordingFetch({ ...REAL_STATUS, disk: { pressure: 'unknown' } }))
+
+    const status = await fetchSystemStatus()
+
+    expect(status.disk?.pressure).toBe('unknown')
+    expect(status.disk?.free_mb).toBeUndefined()
+    expect(status.disk?.used_percent).toBeUndefined()
+  })
+})
+
+/** One row in the shape `/api/env` really returns, for both env readers. */
+const ENV_ROWS = {
+  FAL_KEY: {
+    is_set: true,
+    redacted_value: 'fal_…9c2d',
+    description: 'Fal AI',
+    category: 'media',
+    is_password: true,
+    provider_label: 'Fal',
+    tools: ['generate_image'],
+  },
+}
+
+describe('fetchGlobalEnv', () => {
+  it('sends no profile param, so it reads the dashboard\'s own .env', async () => {
+    const fetchMock = recordingFetch(ENV_ROWS)
+    vi.stubGlobal('fetch', fetchMock)
+
+    await fetchGlobalEnv()
+
+    const url = String(fetchMock.mock.calls[0]?.[0])
+    expect(url).toContain('/api/env')
+    // With a profile the answer would be one employee's file, not the workspace's.
+    expect(url).not.toContain('profile')
+  })
+
+  it('answers the same mapped shape as the scoped read', async () => {
+    vi.stubGlobal('fetch', recordingFetch(ENV_ROWS))
+    const workspace = await fetchGlobalEnv()
+
+    vi.stubGlobal('fetch', recordingFetch(ENV_ROWS))
+    const employee = await fetchProfileEnv('ad-creator')
+
+    expect(workspace).toEqual(employee)
+    expect(workspace.FAL_KEY?.isSet).toBe(true)
+    expect(workspace.FAL_KEY?.redactedValue).toBe('fal_…9c2d')
+    expect(workspace.FAL_KEY?.providerLabel).toBe('Fal')
+  })
+})
+
+describe('fetchMemoryFile', () => {
+  it('reads the account-level MEMORY.md', async () => {
+    const fetchMock = recordingFetch({
+      content: '- Node toolchain is broken\n',
+      path: '/Users/dev/.computer/memories/MEMORY.md',
+      exists: true,
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const file = await fetchMemoryFile()
+
+    const [url, init] = fetchMock.mock.calls[0] ?? []
+    expect(String(url)).toContain('/api/memory/file')
+    expect(init?.method ?? 'GET').toBe('GET')
+    expect(file.content).toBe('- Node toolchain is broken\n')
+    expect(file.exists).toBe(true)
+  })
+
+  it('passes through the never-written state without coercing it', async () => {
+    // A workspace with no memory yet answers 200 `{content: '', exists: false}`.
+    // `exists` is the only thing separating that from a document the user emptied.
+    vi.stubGlobal(
+      'fetch',
+      recordingFetch({ content: '', path: '/Users/dev/.computer/memories/MEMORY.md', exists: false }),
+    )
+
+    const file = await fetchMemoryFile()
+
+    expect(file.exists).toBe(false)
+    expect(file.content).toBe('')
+  })
+})
+
+describe('saveMemoryFile', () => {
+  it('PUTs the whole document as JSON', async () => {
+    const fetchMock = recordingFetch({ ok: true, bytes: 12 })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await saveMemoryFile('- one\n- two\n')
+
+    const [url, init] = fetchMock.mock.calls[0] ?? []
+    expect(String(url)).toContain('/api/memory/file')
+    expect(init?.method).toBe('PUT')
+    // FastAPI rejects the body without this, and `request()` only adds it when
+    // a body is present.
+    const headers = init?.headers as Record<string, string> | undefined
+    expect(headers?.['Content-Type']).toBe('application/json')
+    expect(JSON.parse(String(init?.body))).toEqual({ content: '- one\n- two\n' })
   })
 })

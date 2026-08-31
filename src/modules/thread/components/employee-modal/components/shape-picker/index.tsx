@@ -1,6 +1,6 @@
 import type { FC } from 'react'
 import { cn } from '@repo/ui/cn'
-import { BotGlyph } from '@/modules/core/components/bot-avatar'
+import { BotMark } from '@/modules/core/components/bot-avatar'
 import { MASCOT_SHAPES, MASCOT_SHAPE_NAMES } from '@/modules/core/constants/identity'
 import type { MascotShape } from '@/modules/core/utils/identity'
 
@@ -16,12 +16,13 @@ interface ShapePickerProps {
  *
  * This is the whole of "change the avatar": there is no image upload behind it and there
  * could not be one — Hermes stores nothing per profile but text, and an avatar kept only in
- * this browser's localStorage as a data URL would be a large thing to lose silently. Eight
+ * this browser's localStorage as a data URL would be a large thing to lose silently. Six
  * characters that survive a reload beat a photo that does not.
  *
- * Flat previews rather than eight live 3D bots: each one would be its own WebGL context, and
- * the modal already spends one on the hero above. `BotGlyph` is the same shape and the same
- * face, which is what makes the preview honest.
+ * Each option is the same `BotMark` the roster and the hero draw, at 24px — there is one
+ * renderer now, so a preview cannot disagree with the thing it previews. It is drawn without
+ * a prop on purpose: this control picks a silhouette, and the job glyph would be the loudest
+ * thing in a 24px box while being the one part the control does not change.
  */
 export const ShapePicker: FC<ShapePickerProps> = ({ shape, color, onSelect }) => (
   <div
@@ -42,7 +43,7 @@ export const ShapePicker: FC<ShapePickerProps> = ({ shape, color, onSelect }) =>
           { 'border-secondary bg-fill-variant-active': option === shape },
         )}
       >
-        <BotGlyph shape={option} color={color} label={null} className="size-6" />
+        <BotMark shape={option} color={color} size={24} label={null} className="size-6" />
       </button>
     ))}
   </div>

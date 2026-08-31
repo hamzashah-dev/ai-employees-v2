@@ -1,7 +1,6 @@
 import { ConnectorsIcon } from '@repo/icons/connectors-icon'
 import { FolderClosedIcon } from '@repo/icons/folder-closed-icon'
 import { InfoIcon } from '@repo/icons/info'
-import { LockIcon } from '@repo/icons/lock-icon'
 import type { ModalPageDef } from '../types'
 
 /**
@@ -33,7 +32,6 @@ export const MODAL_PAGES: ModalPageDef[] = [
   { id: 'info', label: 'Info', icon: InfoIcon },
   { id: 'files', label: 'Files', icon: FolderClosedIcon },
   { id: 'connectors', label: 'Connectors', icon: ConnectorsIcon },
-  { id: 'vaults', label: 'Vaults', icon: LockIcon },
 ]
 
 /**

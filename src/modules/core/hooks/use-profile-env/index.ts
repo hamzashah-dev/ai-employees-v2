@@ -4,9 +4,13 @@ import { fetchProfileEnv, type ProfileEnv } from '@/modules/core/services/hermes
 /**
  * The cache entry for one employee's key store.
  *
- * Lives in core because two features read it: the marketplace's hire receipt, which counts
- * an agent's required keys against it, and the employee modal's Vaults page, which lists and
- * edits them. A write in either place invalidates this key and the other follows.
+ * Read by the marketplace's hire receipt, which counts an agent's required keys against it.
+ *
+ * Still in core rather than inside the marketplace: this is the PER-EMPLOYEE view of the key
+ * store, and it survives only to answer "does this employee override a workspace key". The
+ * roster-wide store is Settings › Vault, which reads the same endpoint with no `profile`
+ * param (`fetchGlobalEnv`). The employee modal's Vaults page that used to share this entry
+ * is gone — keys are held once, for the whole roster.
  */
 export const profileEnvKey = (profile: string): [string, string] => [
   'profile-env',

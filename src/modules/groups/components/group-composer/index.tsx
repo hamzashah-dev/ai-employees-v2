@@ -147,7 +147,7 @@ export const GroupComposer: FC<GroupComposerProps> = ({
                       className="flex w-full items-center gap-2 px-2.5 py-2 text-label-md text-primary"
                       onClick={() => onChange(withMention(value, member))}
                     >
-                      <EmployeeAvatar profile={member} className="size-5" />
+                      <EmployeeAvatar profile={member} size={20} />
                       {member}
                     </DropdownMenuItem>
                   ))}

@@ -1,37 +1,42 @@
 /**
- * The bot vocabulary — deliberately free of any `three` import.
+ * The bot vocabulary.
  *
- * A picker, a store or a serialiser needs these names to round-trip a saved avatar, and none
- * of them should have to pull ~180 KB of WebGL in to read a string union. `three` is imported
- * only from `utils/bot-scene`, `utils/bot-geometry` and the canvas component that owns them,
- * all of which sit behind the lazy boundary in `index.tsx`. Keep it that way.
+ * A picker, a store or a serialiser needs these names to round-trip a saved avatar, so they
+ * live apart from anything that draws. That separation used to exist to keep ~180 KB of WebGL
+ * out of a string union; the renderer is now flat SVG and costs nothing, but the split still
+ * earns its place — `stores/identity-store` and `utils/identity` both read these types and
+ * neither should have to reach into a component.
  */
 
-/** The eight silhouettes. Ordered as they should appear in a picker. */
-export type BotShape =
-  | 'round'
-  | 'blob'
-  | 'squircle'
-  | 'pill'
-  | 'cone'
-  | 'hex'
-  | 'cloud'
-  | 'drop'
+/**
+ * The six silhouettes. Ordered as they should appear in a picker.
+ *
+ * Down from eight. `cone`, `pill` and `drop` were authored around 3D eye anchors — a cone has
+ * a narrow, low face that only reads once it is lit — and they turned to mush drawn flat at
+ * roster size. `arch` replaces them, taken from the reference sheet's Product Manager.
+ *
+ * **Order is load-bearing.** `getIdentity` derives a shape by indexing this array with a hash
+ * of the profile name, so reordering repaints every employee. Append, never insert.
+ */
+export type BotShape = 'round' | 'blob' | 'squircle' | 'hex' | 'cloud' | 'arch'
 
-/** The four eye treatments. `glow` is the neutral default face. */
-export type BotEyeStyle = 'glow' | 'happy' | 'visor' | 'sleepy'
+/**
+ * The resting faces, plus the one the product drives rather than the user.
+ *
+ * `working` is deliberately part of the same union and deliberately absent from
+ * `BOT_EYE_STYLES`: it is what an employee wears while a turn is in flight, so a picker must
+ * never offer it and a renderer must always be able to draw it.
+ */
+export type BotEyeStyle = 'glow' | 'visor' | 'happy' | 'sleepy' | 'working'
 
 export type BotColorName =
-  | 'snow'
-  | 'cocoa'
-  | 'cherry'
-  | 'tangerine'
-  | 'amber'
   | 'leaf'
-  | 'sea'
-  | 'sky'
-  | 'grape'
   | 'rose'
+  | 'sky'
+  | 'tangerine'
+  | 'grape'
+  | 'amber'
+  | 'sea'
   | 'slate'
 
 /** A literal `#rrggbb` (or `#rgb`). Narrow enough that a stray token string is a type error. */
@@ -51,7 +56,7 @@ export interface BotColor {
   name: BotColorName
   /** Human-readable, for the accessible name of a swatch. */
   label: string
-  /** The 3D material colour. Not a Tailwind class: it is fed to a `MeshStandardMaterial`. */
+  /** The SVG `fill`. Not a Tailwind class; see the note in `constants`. */
   hex: HexColor
 }
 
@@ -60,15 +65,4 @@ export interface BotAvatarLook {
   shape: BotShape
   eyeStyle: BotEyeStyle
   color: BotColorValue
-}
-
-/** Where a shape wants its eyes to sit, in the body's own object space. */
-export interface BotEyeAnchor {
-  /** Half the gap between the two eyes. */
-  x: number
-  y: number
-  /** How far forward of centre, so the eyes clear the surface they sit on. */
-  z: number
-  /** Eye scale, because a cone has less face to spend than a sphere does. */
-  scale: number
 }

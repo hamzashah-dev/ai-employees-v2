@@ -1,4 +1,4 @@
-import type { FC } from 'react'
+import type { FC, ReactNode } from 'react'
 import TextareaAutosize from 'react-textarea-autosize'
 import { cn } from '@repo/ui/cn'
 import type { ConnectionState } from '@/modules/core/services/hermes/gateway'
@@ -26,6 +26,16 @@ interface ComposerProps {
   columnClassName: string
   /** Overrides the default "Message <name>" prompt — the chat home asks anything of anyone. */
   placeholder?: string
+  /**
+   * A panel docked to the TOP of the prompt box, sharing its container.
+   *
+   * Used by the secret card. It belongs here rather than at the end of the
+   * transcript because it is a control the user must act on, not a message: the
+   * transcript scrolls and can carry it off-screen, while the prompt box is the
+   * one thing that never moves. Docking also makes the ask read as part of the
+   * input rather than as another bubble to scroll past.
+   */
+  above?: ReactNode
 }
 
 /**
@@ -51,6 +61,7 @@ export const Composer: FC<ComposerProps> = ({
   connection,
   columnClassName,
   placeholder,
+  above,
 }) => {
   const {
     value,
@@ -78,7 +89,16 @@ export const Composer: FC<ComposerProps> = ({
   return (
     <div className="flex shrink-0 justify-center p-6">
       <form onSubmit={onSubmit} className={cn('flex flex-col', columnClassName)}>
-        <div className={PROMPT_BOX_CLASS} data-prompt-box>
+        {above}
+        {/* With a panel docked above, the box drops its top rounding and its top
+            border so the seam between the two is a single hairline rather than
+            two stacked edges with a sliver of page between them. */}
+        <div
+          className={cn(PROMPT_BOX_CLASS, {
+            'rounded-t-none border-t-0': Boolean(above),
+          })}
+          data-prompt-box
+        >
           {recorder.isRecording ? (
             <AudioWaveform time={recorder.time} levels={recorder.levels} />
           ) : (

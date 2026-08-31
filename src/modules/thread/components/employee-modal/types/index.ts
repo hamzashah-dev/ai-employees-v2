@@ -1,7 +1,7 @@
 import type { FC } from 'react'
 
-/** The four pages of the employee card. The rail's order is this array's order. */
-export type EmployeeModalPage = 'info' | 'files' | 'connectors' | 'vaults'
+/** The three pages of the employee card. The rail's order is this array's order. */
+export type EmployeeModalPage = 'info' | 'files' | 'connectors'
 
 export interface ModalPageDef {
   id: EmployeeModalPage

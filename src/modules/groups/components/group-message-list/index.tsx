@@ -88,7 +88,7 @@ const GroupEntry: FC<{ message: GroupMessage; viewer: string }> = ({ message, vi
   return (
     <div className="flex gap-3">
       {message.from.kind === 'member' ? (
-        <EmployeeAvatar profile={message.from.name} className="mt-0.5 size-7" />
+        <EmployeeAvatar profile={message.from.name} size={28} className="mt-0.5" />
       ) : (
         // A user entry that is not the viewer's own has no bot to draw: Hermes
         // keeps no avatar for a person.
@@ -113,7 +113,7 @@ const GroupEntry: FC<{ message: GroupMessage; viewer: string }> = ({ message, vi
  */
 const WorkingRow: FC<{ member: string }> = ({ member }) => (
   <div className="flex items-center gap-3">
-    <EmployeeAvatar profile={member} className="size-7" />
+    <EmployeeAvatar profile={member} size={28} />
     <span className="flex items-center gap-1.5 text-label-sm text-tertiary">
       <Spinner />
       {member} is typing…

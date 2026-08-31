@@ -82,7 +82,7 @@ const Row: FC<{ job: HermesCronJob }> = ({ job }) => {
             to={`${ROUTES.EMPLOYEES}/${profile}`}
             className="flex items-center gap-2.5 rounded-lg text-label-md text-inherit hover:text-primary"
           >
-            <EmployeeAvatar profile={profile} className="size-7 shrink-0" />
+            <EmployeeAvatar profile={profile} size={28} className="shrink-0" />
             <span className="truncate">{displayName}</span>
           </Link>
         ) : (

@@ -1,7 +1,7 @@
 import type { FC, KeyboardEvent } from 'react'
 import { PencilIcon } from '@repo/icons/pencil'
 import { cn } from '@repo/ui/cn'
-import { BotAvatar } from '@/modules/core/components/bot-avatar'
+import { BotMark } from '@/modules/core/components/bot-avatar'
 import { ModelPicker } from '../model-picker'
 import type { EmployeeStateLine } from '../../utils/employee-state'
 import type { UseIdentityEditorResult } from '../../hooks/use-identity-editor'
@@ -59,9 +59,10 @@ export const IdentityHeader: FC<IdentityHeaderProps> = ({
       <div className="relative shrink-0">
         {/* Labelled by the slug, like every other avatar in the app, so a rename does not
             change what assistive tech calls the same employee in two places. */}
-        <BotAvatar
+        <BotMark
           shape={editor.shape}
           color={editor.color}
+          prop={editor.prop}
           size={72}
           label={`${profile} avatar`}
           className="drop-shadow-[0_9px_9px_rgba(0,0,0,0.6)]"

@@ -1,124 +1,46 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { BotAvatar } from '.'
-import { BotGlyph } from './components/bot-glyph'
-import { BotSprite, DEFAULT_SPRITE_DISPLAY_SIZE } from './components/bot-sprite'
+import { render, screen } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
+import { BotMark } from '.'
 import {
   BOT_COLORS,
-  BOT_EYE_ANCHORS,
   BOT_EYE_STYLES,
   BOT_EYE_STYLE_LABELS,
   BOT_SHAPES,
   BOT_SHAPE_LABELS,
   DEFAULT_BOT_EYE_STYLE,
 } from './constants'
-import { createBakeQueue } from './utils/bake-queue'
-import { BLINK_DURATION_MS, blinkScale, nextBlinkDelayMs } from './utils/blink'
+import { hueOf, hueSeparation, resolveBotColorHex } from './utils/color'
+import { GROUND_MIN_SIZE, PROP_MIN_SIZE } from './utils/geometry'
 import {
-  SPRITE_BUCKETS,
-  SPRITE_SUPERSAMPLE,
-  botSpriteKey,
-  spriteBucketFor,
-  type BotSpriteVariant,
-} from './utils/sprite-key'
-import { eyeTintHex, glyphEyeHex, mixHex, resolveBotColorHex } from './utils/color'
+  AVATAR_PROPS,
+  AVATAR_PROP_IDS,
+  MIN_PROP_HUE_SEPARATION,
+  PROP_HUE,
+  isAvatarPropId,
+} from '@/modules/core/constants/avatar-props'
 
 /**
- * WebGL does not exist in jsdom, so nothing here asserts on a rendered pixel. What is worth
- * testing is the part that is arithmetic (the blink curve, the schedule, colour resolution),
- * the part that is a contract (the vocabulary is complete and internally consistent), and the
- * part that leaks if it is wrong (mount/unmount discipline — a stray rAF loop or a listener
- * left on `document` is invisible until the tab has been open an hour).
+ * What is worth testing here, now that there is no WebGL to stand in for.
+ *
+ * The renderer is a pure function of its props, so the valuable assertions are the ones that
+ * catch a silent wrong answer rather than a crash: the **size tiers**, because a mark that
+ * keeps its prop at 20px degrades into a smudge and nothing throws; the **vocabulary**, because
+ * it is indexed by a hash and a reorder repaints the whole product; and the **prop registry**,
+ * because a missing hue entry would quietly disable the collision solver for that glyph.
+ *
+ * Assertions about the prop go through `data-prop` rather than the injected markup. jsdom
+ * parses SVG `innerHTML` into the HTML namespace, so querying the vendored paths would be
+ * asserting on nodes the browser would never produce.
  */
 
-const scene = vi.hoisted(() => ({
-  setLook: vi.fn(),
-  setPointerFollow: vi.fn(),
-  play: vi.fn(),
-  pause: vi.fn(),
-  renderFrame: vi.fn(),
-  blink: vi.fn(),
-  dispose: vi.fn(),
-}))
-const createBotScene = vi.hoisted(() => vi.fn(() => scene))
-const isWebGLAvailable = vi.hoisted(() => vi.fn(() => false))
-
-vi.mock('./utils/bot-scene', () => ({ createBotScene, isWebGLAvailable }))
-
-beforeEach(() => {
-  vi.clearAllMocks()
-  isWebGLAvailable.mockReturnValue(false)
-})
-
-describe('blinkScale', () => {
-  it('rests at full height outside the blink', () => {
-    expect(blinkScale(0)).toBe(1)
-    expect(blinkScale(-50)).toBe(1)
-    expect(blinkScale(BLINK_DURATION_MS)).toBe(1)
-    expect(blinkScale(BLINK_DURATION_MS * 3)).toBe(1)
-  })
-
-  it('closes to a sliver at the midpoint rather than to zero', () => {
-    // A lid that reaches exactly 0 makes the eye mesh degenerate and flip its normals.
-    const closed = blinkScale(BLINK_DURATION_MS / 2)
-    expect(closed).toBeGreaterThan(0)
-    expect(closed).toBeLessThan(0.1)
-  })
-
-  it('falls then rises, and never leaves the unit range', () => {
-    const samples = Array.from({ length: 25 }, (_, i) =>
-      blinkScale((i / 24) * BLINK_DURATION_MS),
-    )
-    const trough = samples.indexOf(Math.min(...samples))
-
-    expect(trough).toBeGreaterThan(0)
-    expect(trough).toBeLessThan(samples.length - 1)
-    for (let i = 1; i <= trough; i += 1) {
-      expect(samples[i]!).toBeLessThanOrEqual(samples[i - 1]!)
-    }
-    for (let i = trough + 1; i < samples.length; i += 1) {
-      expect(samples[i]!).toBeGreaterThanOrEqual(samples[i - 1]!)
-    }
-    for (const sample of samples) {
-      expect(sample).toBeGreaterThanOrEqual(0)
-      expect(sample).toBeLessThanOrEqual(1)
-    }
-  })
-})
-
-describe('nextBlinkDelayMs', () => {
-  it('waits 2.2s to 5s when the double-take does not fire', () => {
-    expect(nextBlinkDelayMs(sequence([0, 0.9]))).toBeCloseTo(2_200)
-    expect(nextBlinkDelayMs(sequence([1, 0.9]))).toBeCloseTo(5_000)
-  })
-
-  it('pulls the occasional blink in close, as a double-take', () => {
-    expect(nextBlinkDelayMs(sequence([1, 0.01]))).toBeCloseTo(3_300)
-  })
-
-  it('never schedules two blinks close enough to read as a twitch', () => {
-    // The shortest reachable wait: the minimum 2.2s with the double-take pulling 1.7s off it.
-    expect(nextBlinkDelayMs(sequence([0, 0.01]))).toBe(500)
-    for (let i = 0; i < 200; i += 1) {
-      expect(nextBlinkDelayMs()).toBeGreaterThanOrEqual(420)
-    }
-  })
-
-  it('does not repeat itself', () => {
-    const delays = new Set(Array.from({ length: 40 }, () => nextBlinkDelayMs()))
-    expect(delays.size).toBeGreaterThan(30)
-  })
-})
-
-const sequence = (values: number[]): (() => number) => {
-  let index = 0
-  return () => values[index++ % values.length]!
-}
+const markOf = (label: string) => screen.getByRole('img', { name: label })
+const partsOf = (label: string, part: string) =>
+  markOf(label).querySelectorAll(`[data-part="${part}"]`)
 
 describe('colour resolution', () => {
   it('resolves a palette name to its hex', () => {
-    expect(resolveBotColorHex('grape')).toBe('#7c5cff')
-    expect(resolveBotColorHex('snow')).toBe('#e8e8ec')
+    expect(resolveBotColorHex('grape')).toBe('#8b5cf6')
+    expect(resolveBotColorHex('leaf')).toBe('#10b981')
   })
 
   it('passes a literal hex through, expanding shorthand', () => {
@@ -127,362 +49,226 @@ describe('colour resolution', () => {
   })
 
   it('falls back to the default hue rather than throwing on junk', () => {
-    expect(resolveBotColorHex(undefined)).toBe('#7c5cff')
-    expect(resolveBotColorHex('chartreuse' as 'grape')).toBe('#7c5cff')
-    expect(resolveBotColorHex('#nothex' as `#${string}`)).toBe('#7c5cff')
+    expect(resolveBotColorHex(undefined)).toBe('#8b5cf6')
+    expect(resolveBotColorHex('chartreuse' as 'grape')).toBe('#8b5cf6')
+    expect(resolveBotColorHex('#nothex' as `#${string}`)).toBe('#8b5cf6')
+  })
+})
+
+describe('hue arithmetic', () => {
+  it('reads a hue off a saturated colour', () => {
+    expect(hueOf('#ff0000')).toBeCloseTo(0)
+    expect(hueOf('#00ff00')).toBeCloseTo(120)
+    expect(hueOf('#0000ff')).toBeCloseTo(240)
   })
 
-  it('mixes componentwise in sRGB', () => {
-    expect(mixHex('#000000', '#ffffff', 0)).toBe('#000000')
-    expect(mixHex('#000000', '#ffffff', 1)).toBe('#ffffff')
-    expect(mixHex('#000000', '#ffffff', 0.5)).toBe('#808080')
-    expect(mixHex('#000000', '#ffffff', 5)).toBe('#ffffff')
+  it('reports no hue for a grey, so the solver does not route around nothing', () => {
+    expect(hueOf('#808080')).toBeNull()
+    expect(hueOf('#ffffff')).toBeNull()
+    expect(hueOf('#000000')).toBeNull()
   })
 
-  it('keeps the 3D emissive tint on every hue but the palest', () => {
-    /*
-     * The regression this pins down is one the user saw on screen: the threshold used to sit
-     * at 0.62 luminance, which caught Leaf (0.63) and Amber (0.68) — mid-toned hues that
-     * should carry the same white arcs the 3D bot has — and gave them dark ones instead.
-     * Snow is the only hue in the palette pale enough to genuinely need them.
-     */
-    for (const color of BOT_COLORS) {
-      const matchesTheRenderedBot = glyphEyeHex(color.hex) === eyeTintHex(color.hex)
-      expect({ name: color.name, matchesTheRenderedBot }).toEqual({
-        name: color.name,
-        matchesTheRenderedBot: color.name !== 'snow',
-      })
+  it('measures the short way round the wheel', () => {
+    expect(hueSeparation(10, 350)).toBe(20)
+    expect(hueSeparation(0, 180)).toBe(180)
+    expect(hueSeparation(90, 90)).toBe(0)
+  })
+
+  it('never exceeds half the wheel, whichever order it is asked in', () => {
+    for (let a = 0; a < 360; a += 17) {
+      for (let b = 0; b < 360; b += 23) {
+        const d = hueSeparation(a, b)
+        expect(d).toBeGreaterThanOrEqual(0)
+        expect(d).toBeLessThanOrEqual(180)
+        expect(hueSeparation(b, a)).toBe(d)
+      }
     }
-  })
-
-  it('tints the eyes toward white while keeping the body hue', () => {
-    const tint = eyeTintHex('#e14d4d')
-    expect(tint).not.toBe('#ffffff')
-    // Cherry's red channel still leads its blue channel after the mix.
-    expect(parseInt(tint.slice(1, 3), 16)).toBeGreaterThan(parseInt(tint.slice(5, 7), 16))
   })
 })
 
 describe('the exported vocabulary', () => {
-  it('offers eight shapes, four eye styles and eleven colours', () => {
-    expect(BOT_SHAPES).toHaveLength(8)
+  it('offers six shapes, four pickable eye styles and eight colours', () => {
+    expect(BOT_SHAPES).toHaveLength(6)
     expect(BOT_EYE_STYLES).toHaveLength(4)
-    expect(BOT_COLORS).toHaveLength(11)
+    expect(BOT_COLORS).toHaveLength(8)
   })
 
-  it('names every shape, eye style and colour', () => {
+  it('keeps `working` out of the picker while still being drawable', () => {
+    expect(BOT_EYE_STYLES).not.toContain('working')
+    expect(BOT_EYE_STYLE_LABELS.working).toBeTruthy()
+  })
+
+  it('names every shape and eye style', () => {
     for (const shape of BOT_SHAPES) expect(BOT_SHAPE_LABELS[shape]).toBeTruthy()
-    for (const eyeStyle of BOT_EYE_STYLES) expect(BOT_EYE_STYLE_LABELS[eyeStyle]).toBeTruthy()
-    for (const color of BOT_COLORS) expect(color.label).toBeTruthy()
-  })
-
-  it('wears the happy face by default, everywhere', () => {
-    expect(DEFAULT_BOT_EYE_STYLE).toBe('happy')
-  })
-
-  it('gives every shape somewhere to put its eyes', () => {
-    for (const shape of BOT_SHAPES) {
-      const anchor = BOT_EYE_ANCHORS[shape]
-      expect(anchor.z).toBeGreaterThan(0)
-      expect(anchor.scale).toBeGreaterThan(0)
-    }
+    for (const style of BOT_EYE_STYLES) expect(BOT_EYE_STYLE_LABELS[style]).toBeTruthy()
   })
 
   it('keys every colour uniquely, since the key is what gets persisted', () => {
-    expect(new Set(BOT_COLORS.map((color) => color.name)).size).toBe(BOT_COLORS.length)
-    expect(new Set(BOT_COLORS.map((color) => color.hex)).size).toBe(BOT_COLORS.length)
+    expect(new Set(BOT_COLORS.map((c) => c.name)).size).toBe(BOT_COLORS.length)
+    expect(new Set(BOT_COLORS.map((c) => c.hex)).size).toBe(BOT_COLORS.length)
+  })
+
+  it('drops the silhouettes that were tuned for a 3D face', () => {
+    for (const gone of ['cone', 'pill', 'drop']) {
+      expect(BOT_SHAPES as readonly string[]).not.toContain(gone)
+    }
   })
 })
 
-describe('BotGlyph', () => {
+describe('the prop registry', () => {
+  it('carries a body and a meaning for every prop', () => {
+    for (const id of AVATAR_PROP_IDS) {
+      const prop = AVATAR_PROPS[id]
+      expect(prop.body.length).toBeGreaterThan(0)
+      expect(prop.meaning.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('records a dominant hue for every prop, so no glyph silently skips the solver', () => {
+    for (const id of AVATAR_PROP_IDS) {
+      expect(PROP_HUE).toHaveProperty(id)
+      const hex = PROP_HUE[id]
+      if (hex !== null) expect(hex).toMatch(/^#[0-9a-f]{6}$/i)
+    }
+  })
+
+  it('recognises its own ids and rejects anything else', () => {
+    expect(isAvatarPropId('search')).toBe(true)
+    expect(isAvatarPropId('not-a-prop')).toBe(false)
+    expect(isAvatarPropId(undefined)).toBe(false)
+    expect(isAvatarPropId(null)).toBe(false)
+  })
+
+  it('leaves at least one body hue legible against every prop', () => {
+    for (const id of AVATAR_PROP_IDS) {
+      const hex = PROP_HUE[id]
+      const propHue = hex ? hueOf(hex) : null
+      if (propHue === null) continue
+      const clear = BOT_COLORS.filter((c) => {
+        const hue = hueOf(c.hex)
+        return hue === null || hueSeparation(hue, propHue) >= MIN_PROP_HUE_SEPARATION
+      })
+      expect(clear.length).toBeGreaterThan(0)
+    }
+  })
+})
+
+describe('BotMark', () => {
   it('carries the accessible name an avatar needs', () => {
-    render(<BotGlyph label="Ada avatar" />)
-    expect(screen.getByRole('img', { name: 'Ada avatar' })).toBeInTheDocument()
+    render(<BotMark label="ad-creator avatar" />)
+    expect(markOf('ad-creator avatar')).toBeInTheDocument()
   })
 
   it('steps out of the tree when the surrounding control is already labelled', () => {
-    render(<BotGlyph label={null} />)
+    const { container } = render(<BotMark label={null} />)
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
   })
 
   it('draws every shape and eye style without throwing', () => {
     for (const shape of BOT_SHAPES) {
-      for (const eyeStyle of BOT_EYE_STYLES) {
-        const { unmount } = render(<BotGlyph shape={shape} eyeStyle={eyeStyle} color="sea" />)
+      for (const eyeStyle of [...BOT_EYE_STYLES, 'working' as const]) {
+        const { unmount } = render(
+          <BotMark shape={shape} eyeStyle={eyeStyle} label={`${shape}-${eyeStyle}`} />,
+        )
+        expect(partsOf(`${shape}-${eyeStyle}`, 'body')).toHaveLength(1)
+        expect(partsOf(`${shape}-${eyeStyle}`, 'eyes')).toHaveLength(1)
         unmount()
       }
     }
   })
-})
 
-describe('BotAvatar', () => {
-  it('shows a named avatar immediately, before the three chunk lands', () => {
-    render(<BotAvatar label="Ada avatar" />)
-    // The Suspense fallback is the flat glyph, so the surface never opens on an empty box.
-    expect(screen.getByRole('img', { name: 'Ada avatar' })).toBeInTheDocument()
+  it('paints the body in the resolved hue', () => {
+    render(<BotMark color="leaf" label="leafy" />)
+    expect(partsOf('leafy', 'body')[0]).toHaveAttribute('fill', '#10b981')
   })
 
-  it('falls back to the flat glyph where there is no WebGL context', async () => {
-    const { container } = render(<BotAvatar label="Ada avatar" />)
-    await waitFor(() => expect(isWebGLAvailable).toHaveBeenCalled())
+  it('wears the resting face by default and the working one while busy', () => {
+    const { rerender } = render(<BotMark label="worker" />)
+    expect(partsOf('worker', 'eyes')[0]).toHaveAttribute('data-face', DEFAULT_BOT_EYE_STYLE)
 
-    expect(createBotScene).not.toHaveBeenCalled()
-    expect(container.querySelector('svg')).toBeInTheDocument()
-    expect(screen.getByRole('img', { name: 'Ada avatar' })).toBeInTheDocument()
+    rerender(<BotMark label="worker" busy />)
+    expect(partsOf('worker', 'eyes')[0]).toHaveAttribute('data-face', 'working')
   })
 
-  it('mounts and unmounts without leaving a listener on document', async () => {
-    const added = vi.spyOn(document, 'addEventListener')
-    const removed = vi.spyOn(document, 'removeEventListener')
-
-    const { unmount } = render(<BotAvatar label="Ada avatar" />)
-    await waitFor(() => expect(isWebGLAvailable).toHaveBeenCalled())
-    unmount()
-
-    const addedEvents = added.mock.calls.map(([event]) => event)
-    const removedEvents = removed.mock.calls.map(([event]) => event)
-    expect(addedEvents).toContain('visibilitychange')
-    for (const event of addedEvents) expect(removedEvents).toContain(event)
-
-    added.mockRestore()
-    removed.mockRestore()
+  it('keeps the chosen resting face out of the way of the busy one', () => {
+    render(<BotMark label="sleeper" eyeStyle="sleepy" busy />)
+    expect(partsOf('sleeper', 'eyes')[0]).toHaveAttribute('data-face', 'working')
   })
 
-  describe('with a WebGL context', () => {
-    beforeEach(() => {
-      isWebGLAvailable.mockReturnValue(true)
-    })
+  it('draws the prop it is given', () => {
+    render(<BotMark prop="headset" size={64} label="support" />)
+    expect(partsOf('support', 'prop')[0]).toHaveAttribute('data-prop', 'headset')
+  })
 
-    afterEach(() => {
-      Object.defineProperty(document, 'hidden', { value: false, configurable: true })
-    })
+  it('draws no prop when it is given none, rather than guessing one', () => {
+    render(<BotMark size={64} label="propless" />)
+    expect(partsOf('propless', 'prop')).toHaveLength(0)
 
-    it('builds exactly one scene and disposes it on unmount', async () => {
-      const { unmount } = render(<BotAvatar label="Ada avatar" />)
-      await waitFor(() => expect(createBotScene).toHaveBeenCalledTimes(1))
-
-      expect(scene.dispose).not.toHaveBeenCalled()
-      unmount()
-      // The renderer, its context and its rAF loop all go with this call.
-      expect(scene.dispose).toHaveBeenCalledTimes(1)
-    })
-
-    it('runs the loop while on screen and visible', async () => {
-      render(<BotAvatar label="Ada avatar" />)
-      await waitFor(() => expect(scene.play).toHaveBeenCalled())
-    })
-
-    it('stops the loop dead when the tab is hidden, and restarts it on return', async () => {
-      render(<BotAvatar label="Ada avatar" />)
-      await waitFor(() => expect(scene.play).toHaveBeenCalled())
-      scene.play.mockClear()
-
-      Object.defineProperty(document, 'hidden', { value: true, configurable: true })
-      act(() => void document.dispatchEvent(new Event('visibilitychange')))
-      await waitFor(() => expect(scene.pause).toHaveBeenCalled())
-      expect(scene.play).not.toHaveBeenCalled()
-
-      Object.defineProperty(document, 'hidden', { value: false, configurable: true })
-      act(() => void document.dispatchEvent(new Event('visibilitychange')))
-      await waitFor(() => expect(scene.play).toHaveBeenCalled())
-    })
-
-    it('mutates the existing scene on a look change instead of rebuilding it', async () => {
-      const { rerender } = render(<BotAvatar label="Ada avatar" shape="round" color="sea" />)
-      await waitFor(() => expect(createBotScene).toHaveBeenCalledTimes(1))
-
-      rerender(<BotAvatar label="Ada avatar" shape="cloud" color="sea" />)
-      await waitFor(() =>
-        expect(scene.setLook).toHaveBeenCalledWith(
-          expect.objectContaining({ shape: 'cloud', colorHex: '#33a893' }),
-        ),
-      )
-      expect(createBotScene).toHaveBeenCalledTimes(1)
-    })
-
-    it('does not follow the pointer when the caller says not to', async () => {
-      render(<BotAvatar label="Ada avatar" interactive={false} />)
-      await waitFor(() => expect(createBotScene).toHaveBeenCalledTimes(1))
-      expect(createBotScene).toHaveBeenCalledWith(expect.anything(), expect.anything(), false)
-    })
+    render(<BotMark prop={null} size={64} label="cleared" />)
+    expect(partsOf('cleared', 'prop')).toHaveLength(0)
   })
 })
 
-describe('sprite bucketing', () => {
-  const variant = (over: Partial<BotSpriteVariant> = {}): BotSpriteVariant => ({
-    shape: 'round',
-    eyeStyle: 'happy',
-    colorHex: '#7c5cff',
-    displaySize: 36,
-    ...over,
+describe('sizing', () => {
+  /*
+   * The regression these guard shipped once and was invisible to every other test in this
+   * file: `size` drove the detail tiers but nothing drove the box, so a caller that sized
+   * purely through `size` — the identity modal's hero — rendered a zero-width avatar. Every
+   * tier assertion still passed, because the parts were all present in a box of no size.
+   */
+  it('sizes itself from `size` alone, with no class to help it', () => {
+    render(<BotMark size={72} label="hero" />)
+    const svg = markOf('hero')
+    expect(svg).toHaveAttribute('width', '72')
+    expect(svg).toHaveAttribute('height', '72')
   })
 
-  it('never picks a bucket that would have to be upscaled', () => {
-    for (const size of [1, 12, 20, 24, 28, 32, 36, 40, 48, 64]) {
-      expect(spriteBucketFor(size)).toBeGreaterThanOrEqual(size * SPRITE_SUPERSAMPLE)
-    }
+  it('sizes itself at the default too, so a bare mark is never zero-width', () => {
+    render(<BotMark label="bare" />)
+    expect(markOf('bare').getAttribute('width')).not.toBe('0')
+    expect(Number(markOf('bare').getAttribute('width'))).toBeGreaterThan(0)
   })
 
-  it('clamps rather than inventing a bucket for an absurd size', () => {
-    const largest = SPRITE_BUCKETS[SPRITE_BUCKETS.length - 1]!
-    expect(spriteBucketFor(4_000)).toBe(largest)
-  })
-
-  it('bakes one bitmap per look for the whole app, big enough for its largest avatar', () => {
-    /*
-     * No avatar surface passes its own `size`; they all take the default, so every one of
-     * them shares a single cached bitmap per look. That default has to be at least as big as
-     * the largest place an avatar is actually drawn — 64px on the marketplace detail header
-     * — or that one is upscaled and soft. 20px grouped message through 64px header:
-     */
-    for (const size of [20, 24, 28, 36, 40, 48, 64]) {
-      expect(spriteBucketFor(DEFAULT_SPRITE_DISPLAY_SIZE)).toBeGreaterThanOrEqual(
-        size * SPRITE_SUPERSAMPLE,
-      )
-    }
-    expect(botSpriteKey(variant({ displaySize: DEFAULT_SPRITE_DISPLAY_SIZE }))).toBe(
-      botSpriteKey(variant({ displaySize: DEFAULT_SPRITE_DISPLAY_SIZE })),
-    )
-  })
-
-  it('keys by what changes the pixels, and nothing else', () => {
-    expect(botSpriteKey(variant())).toBe(botSpriteKey(variant()))
-    // Same bucket, different requested size: the same bitmap serves both.
-    expect(botSpriteKey(variant({ displaySize: 24 }))).toBe(
-      botSpriteKey(variant({ displaySize: 28 })),
-    )
-    expect(botSpriteKey(variant({ colorHex: '#7C5CFF' }))).toBe(botSpriteKey(variant()))
-  })
-
-  it('separates every look that would render differently', () => {
-    const keys = new Set<string>()
-    for (const shape of BOT_SHAPES) {
-      for (const eyeStyle of BOT_EYE_STYLES) {
-        for (const color of BOT_COLORS) {
-          keys.add(botSpriteKey(variant({ shape, eyeStyle, colorHex: color.hex })))
-        }
-      }
-    }
-    expect(keys.size).toBe(BOT_SHAPES.length * BOT_EYE_STYLES.length * BOT_COLORS.length)
+  it('still lets a class win, which is how the group cluster lays its faces out', () => {
+    render(<BotMark size={20} className="size-4" label="clustered" />)
+    const svg = markOf('clustered')
+    expect(svg).toHaveAttribute('width', '20')
+    expect(svg.getAttribute('class')).toContain('size-4')
   })
 })
 
-describe('createBakeQueue', () => {
-  it('bakes a key once however many rows ask for it', async () => {
-    const queue = createBakeQueue<string>()
-    const produce = vi.fn(() => Promise.resolve('sprite'))
-
-    // Thirty roster rows, twelve of them the same employee, all mounting in one commit.
-    const all = await Promise.all(
-      Array.from({ length: 12 }, () => queue.request('round|happy|#7c5cff|192', produce)),
-    )
-
-    expect(produce).toHaveBeenCalledTimes(1)
-    expect(all.every((value) => value === 'sprite')).toBe(true)
-    expect(queue.size()).toBe(1)
+describe('size tiers', () => {
+  it('draws everything at hero size', () => {
+    render(<BotMark prop="search" size={96} label="hero" />)
+    expect(partsOf('hero', 'ground')).toHaveLength(1)
+    expect(partsOf('hero', 'prop')).toHaveLength(1)
   })
 
-  it('runs distinct keys one at a time, never overlapping', async () => {
-    // The baker owns one renderer and one scene graph, and a bake mutates both before
-    // reading the canvas back. Two in flight would read each other's pixels.
-    const queue = createBakeQueue<string>()
-    let inFlight = 0
-    let maxInFlight = 0
-
-    const produce = (key: string) => async () => {
-      inFlight += 1
-      maxInFlight = Math.max(maxInFlight, inFlight)
-      await Promise.resolve()
-      inFlight -= 1
-      return key
-    }
-
-    await Promise.all(['a', 'b', 'c', 'd'].map((key) => queue.request(key, produce(key))))
-
-    expect(maxInFlight).toBe(1)
-    expect(queue.size()).toBe(4)
+  it('drops the ground first, since a 3-unit ellipse muddies before anything else', () => {
+    render(<BotMark prop="search" size={GROUND_MIN_SIZE - 1} label="mid" />)
+    expect(partsOf('mid', 'ground')).toHaveLength(0)
+    expect(partsOf('mid', 'prop')).toHaveLength(1)
   })
 
-  it('answers an already-baked key synchronously, so a revisit does not flash', async () => {
-    const queue = createBakeQueue<string>()
-    expect(queue.peek('a')).toBeUndefined()
-
-    const pending = queue.request('a', () => Promise.resolve('sprite'))
-    // Still in flight: peek must not hand back a half-made value.
-    expect(queue.peek('a')).toBeUndefined()
-
-    await pending
-    expect(queue.peek('a')).toBe('sprite')
+  it('keeps the ground at exactly the threshold, not one pixel above it', () => {
+    render(<BotMark prop="search" size={GROUND_MIN_SIZE} label="edge" />)
+    expect(partsOf('edge', 'ground')).toHaveLength(1)
   })
 
-  it('forgets a failure so a later mount can retry it', async () => {
-    const queue = createBakeQueue<string>()
-    await expect(queue.request('a', () => Promise.reject(new Error('no context')))).rejects.toThrow(
-      'no context',
-    )
-    expect(queue.size()).toBe(0)
-
-    await expect(queue.request('a', () => Promise.resolve('sprite'))).resolves.toBe('sprite')
+  it('drops the prop below its own threshold', () => {
+    render(<BotMark prop="search" size={PROP_MIN_SIZE - 1} label="tiny" />)
+    expect(partsOf('tiny', 'prop')).toHaveLength(0)
   })
 
-  it('keeps going after one key fails', async () => {
-    const queue = createBakeQueue<string>()
-    const failed = queue.request('a', () => Promise.reject(new Error('boom')))
-    const ok = queue.request('b', () => Promise.resolve('sprite'))
-
-    await expect(failed).rejects.toThrow('boom')
-    await expect(ok).resolves.toBe('sprite')
+  it('keeps the prop at exactly its threshold', () => {
+    render(<BotMark prop="search" size={PROP_MIN_SIZE} label="prop-edge" />)
+    expect(partsOf('prop-edge', 'prop')).toHaveLength(1)
   })
 
-  it('hands every cached value back on clear, so object URLs can be revoked', () => {
-    const queue = createBakeQueue<string>()
-    const dropped: string[] = []
-    queue.clear((value) => dropped.push(value))
-    expect(dropped).toEqual([])
-    expect(queue.size()).toBe(0)
-  })
-})
-
-describe('BotSprite', () => {
-  it('paints a named avatar on the first frame, before anything is baked', () => {
-    render(<BotSprite label="Ada avatar" color="leaf" />)
-    // The flat stand-in, not a skeleton: a list never opens on holes where its avatars go.
-    expect(screen.getByRole('img', { name: 'Ada avatar' })).toBeInTheDocument()
-  })
-
-  it('stays on the flat glyph where there is no WebGL, without an unhandled rejection', async () => {
-    const { container, unmount } = render(<BotSprite label="Ada avatar" />)
-    // Let the dynamic import of the baker resolve and reject.
-    await act(async () => {
-      await Promise.resolve()
-    })
-
-    expect(container.querySelector('svg')).toBeInTheDocument()
-    expect(container.querySelector('img')).toBeNull()
-    unmount()
-  })
-
-  it('mounts a roster of them and tears it down without throwing', () => {
-    const { unmount } = render(
-      <ul>
-        {BOT_COLORS.map((color, index) => (
-          <li key={color.name}>
-            <BotSprite
-              color={color.name}
-              shape={BOT_SHAPES[index % BOT_SHAPES.length]}
-              label={`${color.label} avatar`}
-            />
-          </li>
-        ))}
-      </ul>,
-    )
-
-    expect(screen.getAllByRole('img')).toHaveLength(BOT_COLORS.length)
-    unmount()
-  })
-
-  it('steps out of the accessibility tree when its control is already labelled', () => {
-    render(<BotSprite label={null} />)
-    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+  it('never drops the body or the face, however small it gets', () => {
+    render(<BotMark prop="search" size={12} label="dot" />)
+    expect(partsOf('dot', 'body')).toHaveLength(1)
+    expect(partsOf('dot', 'eyes')).toHaveLength(1)
   })
 })

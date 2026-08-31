@@ -21,9 +21,9 @@ export const SKELETON_ROW_COUNT = 4
 /**
  * Route slugs, matching imagine-computer-web's `ABSOLUTE_ROUTES` so the ported
  * nav reads the same. Only `/`, `/employees`, `/employees/hire/:agentKey`,
- * `/employees/:profile`, `/search` and `/routines` are mounted in this app today —
- * the remaining default-mode destinations are the surrounding product's and resolve
- * to the catch-all until `src/app` mounts them.
+ * `/employees/:profile`, `/search`, `/routines`, `/groups` and `/settings` are
+ * mounted in this app today — the remaining default-mode destinations are the
+ * surrounding product's and resolve to the catch-all until `src/app` mounts them.
  *
  * There is no `/marketplace`. Browsing and hiring *is* the Employees page, so the
  * catalogue lives at `EMPLOYEES` and one agent's detail panel opens over it at
@@ -45,6 +45,7 @@ export const ROUTES = {
   HIRE: '/employees/hire',
   ROUTINES: '/routines',
   GROUPS: '/groups',
+  SETTINGS: '/settings',
 } as const
 
 /**
@@ -69,10 +70,19 @@ export const EMPLOYEES_ROUTE_ROOTS: string[] = [
  * here because the design names it explicitly ("a hop into /integrations keeps
  * the Employees sidebar"). One line to revert if the intent was literally
  * "copy Sites".
+ *
+ * `/settings` is sticky rather than an Employees root, and the two constants'
+ * own wording is the argument: Employees roots *put* the sidebar in Employees
+ * mode, and Settings must not — it is opened from the account row in the
+ * footer, which is on screen in both modes, so a default-mode user pressing it
+ * would come back to a sidebar they never asked for. Sticky is exactly the
+ * documented case instead: "a hop out of Employees to manage connectors or
+ * preferences keeps the Employees sidebar".
  */
 export const MODE_STICKY_ROUTE_ROOTS: string[] = [
   ROUTES.CUSTOMIZE,
   ROUTES.INTEGRATIONS,
+  ROUTES.SETTINGS,
 ]
 
 /**

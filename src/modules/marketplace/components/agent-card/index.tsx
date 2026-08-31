@@ -109,6 +109,7 @@ export const AgentCard: FC<AgentCardProps> = ({ agent, installed }) => {
       */}
       <AgentBlob
         profile={agent.id}
+        size={80}
         className="pointer-events-none absolute -top-6 left-5 size-20"
       />
 

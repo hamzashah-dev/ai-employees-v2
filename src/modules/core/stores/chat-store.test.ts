@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { liveUrlFrom, reduceEvent, toChatMessage, toChatMessages } from './chat-store'
+import { liveUrlFrom, reduceEvent, toChatMessage, toChatMessages, useChatStore } from './chat-store'
 import type { EmployeeThread } from '../types/chat'
 import type { GatewayEvent } from '../services/hermes/gateway'
+import type { SessionManager } from '../services/hermes/session-manager'
+import type { HermesWireMessage } from '../services/hermes/types'
 
 function thread(overrides: Partial<EmployeeThread> = {}): EmployeeThread {
   return { profile: 'ad-creator', messages: [], status: 'ready', hydrated: true, ...overrides }
@@ -289,6 +291,117 @@ describe('reduceEvent', () => {
     expect(state.status).toBe('needs-you')
   })
 
+  it('parks the thread on needs-you for a secret request', () => {
+    // A skill declared a required env var that is missing, and the gateway is
+    // parked inside `_block()` with NO timeout waiting for `secret.respond`.
+    const state = reduceEvent(
+      thread({ status: 'working' }),
+      event('secret.request', {
+        request_id: 's1',
+        env_var: 'LINEAR_API_KEY',
+        prompt: 'Paste a Linear API key — Settings → API → Personal keys.',
+        metadata: { skill: 'linear-triage' },
+      }),
+    )
+
+    expect(state.status).toBe('needs-you')
+    // The request, and only the request. There is no `value` field to fill.
+    expect(state.secret).toEqual({
+      requestId: 's1',
+      envVar: 'LINEAR_API_KEY',
+      prompt: 'Paste a Linear API key — Settings → API → Personal keys.',
+      metadata: { skill: 'linear-triage' },
+    })
+  })
+
+  it('ignores a secret request with no request_id to answer', () => {
+    const before = thread({ status: 'working' })
+    expect(reduceEvent(before, event('secret.request', { env_var: 'LINEAR_API_KEY' }))).toBe(before)
+  })
+
+  it('omits metadata when the secret request carries none', () => {
+    const state = reduceEvent(thread(), event('secret.request', { request_id: 's1' }))
+    expect(state.secret).toEqual({ requestId: 's1', envVar: '', prompt: '' })
+  })
+
+  it('replaces a standing secret request with a second one', () => {
+    let state = reduceEvent(thread(), event('secret.request', { request_id: 's1', env_var: 'A' }))
+    state = reduceEvent(state, event('secret.request', { request_id: 's2', env_var: 'B' }))
+
+    expect(state.secret).toEqual({ requestId: 's2', envVar: 'B', prompt: '' })
+    expect(state.status).toBe('needs-you')
+  })
+
+  it('holds needs-you through both turn terminals while a secret stands', () => {
+    let state = reduceEvent(thread(), event('message.start'))
+    state = reduceEvent(state, event('secret.request', { request_id: 's1', env_var: 'A' }))
+
+    expect(reduceEvent(state, event('message.complete', { text: 'waiting' })).status).toBe(
+      'needs-you',
+    )
+    expect(reduceEvent(state, event('session.info', { running: false })).status).toBe('needs-you')
+  })
+
+  it('clears the secret on expire and resumes the turn', () => {
+    // The secret wait is given no timeout at all, so `secret.expire` is the only
+    // thing that ends it — the UI must never time a card out itself.
+    let state = reduceEvent(thread(), event('message.start'))
+    state = reduceEvent(state, event('secret.request', { request_id: 's1', env_var: 'A' }))
+    state = reduceEvent(state, event('secret.expire', { request_id: 's1' }))
+
+    expect(state.secret).toBeUndefined()
+    expect(state.status).toBe('working')
+  })
+
+  it('ignores an expire for a secret that is not the open one', () => {
+    let state = reduceEvent(thread(), event('message.start'))
+    state = reduceEvent(state, event('secret.request', { request_id: 's2', env_var: 'A' }))
+    const after = reduceEvent(state, event('secret.expire', { request_id: 's1' }))
+
+    expect(after).toBe(state)
+    expect(after.secret?.requestId).toBe('s2')
+  })
+
+  it('ignores an expire when no secret is open', () => {
+    const before = thread({ status: 'working' })
+    expect(reduceEvent(before, event('secret.expire', { request_id: 's1' }))).toBe(before)
+  })
+
+  it('keeps needs-you when a secret expires with a clarify still open', () => {
+    let state = reduceEvent(thread(), event('message.start'))
+    state = reduceEvent(state, event('secret.request', { request_id: 's1', env_var: 'A' }))
+    state = reduceEvent(state, event('clarify.request', { request_id: 'c1', question: 'in?' }))
+    state = reduceEvent(state, event('secret.expire', { request_id: 's1' }))
+
+    expect(state.secret).toBeUndefined()
+    expect(state.status).toBe('needs-you')
+  })
+
+  it('keeps needs-you when a clarify expires with a secret still open', () => {
+    let state = reduceEvent(thread(), event('message.start'))
+    state = reduceEvent(state, event('clarify.request', { request_id: 'c1', question: 'in?' }))
+    state = reduceEvent(state, event('secret.request', { request_id: 's1', env_var: 'A' }))
+    state = reduceEvent(state, event('clarify.expire', { request_id: 'c1' }))
+
+    expect(state.clarify).toBeUndefined()
+    expect(state.status).toBe('needs-you')
+  })
+
+  it('never lands a secret value in the thread, whatever the payload carries', () => {
+    // The wire has no value field, but a payload that grew one must not leak it
+    // into rendered state by being spread in wholesale.
+    const state = reduceEvent(
+      thread(),
+      event('secret.request', {
+        request_id: 's1',
+        env_var: 'LINEAR_API_KEY',
+        value: 'lin_api_NEVERSTORED',
+      }),
+    )
+
+    expect(JSON.stringify(state)).not.toContain('lin_api_NEVERSTORED')
+  })
+
   it('captures the toolsets from a session.info that is not a turn terminal', () => {
     // `info.tools` only ever rides the create/resume/config emissions, i.e. the
     // ones the turn-terminal gate drops. Merging below the gate meant the UI
@@ -431,5 +544,191 @@ describe('liveUrlFrom', () => {
     expect(liveUrlFrom({ vnc_url: '' })).toBeUndefined()
     expect(liveUrlFrom({})).toBeUndefined()
     expect(liveUrlFrom(null)).toBeUndefined()
+  })
+})
+
+describe('hydrate', () => {
+  function bindHistory(
+    history: (profile: string) => Promise<{ messages?: HermesWireMessage[] }>,
+  ) {
+    const calls: string[] = []
+    useChatStore.setState({ threads: {} })
+    useChatStore.getState().bind({
+      history: (profile: string) => {
+        calls.push(profile)
+        return history(profile)
+      },
+    } as unknown as SessionManager)
+    return calls
+  }
+
+  it('replays a restored transcript into the thread', async () => {
+    bindHistory(async () => ({
+      messages: [
+        { role: 'user', text: 'generate me a cat' },
+        { role: 'assistant', text: "Here's your cat!" },
+      ],
+    }))
+
+    await useChatStore.getState().hydrate('ad-creator')
+
+    const restored = useChatStore.getState().threads['ad-creator']
+    expect(restored?.hydrated).toBe(true)
+    expect(restored?.messages.map((m) => m.text)).toEqual([
+      'generate me a cat',
+      "Here's your cat!",
+    ])
+  })
+
+  /**
+   * `hydrated` is only set when the read resolves, so it does not close the
+   * window on its own: StrictMode double-invokes the effect, and both arrivals
+   * would otherwise pull a full transcript over the socket.
+   */
+  it('reads a transcript once when two callers arrive together', async () => {
+    const calls = bindHistory(async () => ({ messages: [{ role: 'user', text: 'hi' }] }))
+
+    await Promise.all([
+      useChatStore.getState().hydrate('ad-creator'),
+      useChatStore.getState().hydrate('ad-creator'),
+    ])
+
+    expect(calls).toEqual(['ad-creator'])
+  })
+
+  it('puts a failed restore on the thread instead of leaving it blank forever', async () => {
+    bindHistory(async () => {
+      throw new Error('socket is not open')
+    })
+
+    await useChatStore.getState().hydrate('ad-creator')
+
+    const failed = useChatStore.getState().threads['ad-creator']
+    expect(failed?.error).toBe('socket is not open')
+    // Hydrated even so: the thread is settled, and the error is what it shows.
+    expect(failed?.hydrated).toBe(true)
+  })
+
+  it('lets a later call retry after a failure', async () => {
+    const calls = bindHistory(async () => ({ messages: [] }))
+    await useChatStore.getState().hydrate('ad-creator')
+    await useChatStore.getState().hydrate('ad-creator')
+
+    // The second is a no-op: the first already settled the thread.
+    expect(calls).toEqual(['ad-creator'])
+  })
+})
+
+/**
+ * The value the human types must reach `secret.respond` and nothing else: not
+ * the store, not an error message, not a log line. Hermes keeps it out of the
+ * tool result too, which is what makes the card's "never printed in the
+ * transcript" claim true end to end — but only if this half holds up.
+ */
+describe('answering a secret request', () => {
+  const VALUE = 'lin_api_0PENSESAME'
+
+  interface Attempt {
+    method: 'respondSecret' | 'skipSecret'
+    args: unknown[]
+  }
+
+  function bindSecrets(onCall?: () => void): Attempt[] {
+    const attempts: Attempt[] = []
+    useChatStore.setState({ threads: {} })
+    useChatStore.getState().bind({
+      respondSecret: async (...args: unknown[]) => {
+        attempts.push({ method: 'respondSecret', args })
+        onCall?.()
+      },
+      skipSecret: async (...args: unknown[]) => {
+        attempts.push({ method: 'skipSecret', args })
+        onCall?.()
+      },
+    } as unknown as SessionManager)
+    return attempts
+  }
+
+  function standing(): void {
+    useChatStore.setState({
+      threads: {
+        'ad-creator': thread({
+          status: 'needs-you',
+          secret: { requestId: 's1', envVar: 'LINEAR_API_KEY', prompt: 'Paste a Linear key.' },
+        }),
+      },
+    })
+  }
+
+  it('forwards the value once and drops the card', async () => {
+    const attempts = bindSecrets()
+    standing()
+
+    await useChatStore.getState().submitSecret('ad-creator', VALUE)
+
+    expect(attempts).toEqual([{ method: 'respondSecret', args: ['ad-creator', 's1', VALUE] }])
+    const after = useChatStore.getState().threads['ad-creator']
+    expect(after?.secret).toBeUndefined()
+    // The parked agent thread carries on with its turn.
+    expect(after?.status).toBe('working')
+    expect(JSON.stringify(useChatStore.getState().threads)).not.toContain(VALUE)
+  })
+
+  it('declines with no value at all', async () => {
+    const attempts = bindSecrets()
+    standing()
+
+    await useChatStore.getState().skipSecret('ad-creator')
+
+    // "Not now" is a real answer — it releases the thread rather than dismissing
+    // a card and leaving the agent parked.
+    expect(attempts).toEqual([{ method: 'skipSecret', args: ['ad-creator', 's1'] }])
+    expect(useChatStore.getState().threads['ad-creator']?.secret).toBeUndefined()
+  })
+
+  it('keeps the card standing when the send fails, without leaking the value', async () => {
+    bindSecrets(() => {
+      throw new Error('socket is not open')
+    })
+    standing()
+
+    await useChatStore.getState().submitSecret('ad-creator', VALUE)
+
+    const after = useChatStore.getState().threads['ad-creator']
+    // Still parked, so retrying is the only way through.
+    expect(after?.secret?.requestId).toBe('s1')
+    expect(after?.error).toBe('socket is not open')
+    expect(JSON.stringify(after)).not.toContain(VALUE)
+  })
+
+  it('leaves a newer request alone when the answered one resolves', async () => {
+    bindSecrets(() => {
+      // A second request landed while the RPC was in flight.
+      useChatStore.setState({
+        threads: {
+          'ad-creator': thread({
+            status: 'needs-you',
+            secret: { requestId: 's2', envVar: 'STRIPE_KEY', prompt: 'And this one.' },
+          }),
+        },
+      })
+    })
+    standing()
+
+    await useChatStore.getState().submitSecret('ad-creator', VALUE)
+
+    const after = useChatStore.getState().threads['ad-creator']
+    expect(after?.secret?.requestId).toBe('s2')
+    expect(after?.status).toBe('needs-you')
+  })
+
+  it('sends nothing when no request is standing', async () => {
+    const attempts = bindSecrets()
+    useChatStore.setState({ threads: { 'ad-creator': thread() } })
+
+    await useChatStore.getState().submitSecret('ad-creator', VALUE)
+    await useChatStore.getState().skipSecret('ad-creator')
+
+    expect(attempts).toEqual([])
   })
 })
