@@ -58,7 +58,7 @@ export const ThreadHeader: FC<ThreadHeaderProps> = ({
           onClick={() => setInfoOpen(true)}
           className="flex min-w-0 items-center gap-2 rounded-xl px-1.5 py-1 outline-none transition-colors duration-200 ease-linear hover:bg-fill-variant-hover focus-visible:bg-fill-variant-hover"
         >
-          <EmployeeAvatar profile={profile} className="size-6" />
+          <EmployeeAvatar profile={profile} size={24} />
           <span className="truncate text-label-md font-medium text-primary">
             {displayName}
           </span>

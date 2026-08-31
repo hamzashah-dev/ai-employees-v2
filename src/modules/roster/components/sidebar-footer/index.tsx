@@ -1,8 +1,10 @@
 import type { FC } from 'react'
+import { NavLink } from 'react-router-dom'
 import { SettingsIcon } from '@repo/icons/settings'
 import { AccountAvatar } from '@/modules/core/components/account-avatar'
 import { cn } from '@repo/ui/cn'
 import { ACCOUNT_NAME, ACCOUNT_PLAN } from '@/modules/core/constants/account'
+import { ROUTES } from '../../constants'
 import { useSidebarCollapsed } from '../../contexts/sidebar-collapsed'
 
 /**
@@ -10,7 +12,9 @@ import { useSidebarCollapsed } from '../../contexts/sidebar-collapsed'
  * separated from the body by a full-bleed hairline.
  *
  * Name and plan are constants — Hermes has no identity or billing endpoint.
- * Settings is disabled for the same reason: there is nothing behind it yet.
+ * Settings is a real destination: `/settings` mounts the Account, Vault and
+ * Connectors surfaces, so the button is a `NavLink` and lights up while you are
+ * on any of them.
  */
 export const SidebarFooter: FC = () => {
   const isCollapsed = useSidebarCollapsed()
@@ -30,16 +34,24 @@ export const SidebarFooter: FC = () => {
           </span>
         )}
 
+        {/*
+          Hidden on the icon rail, as it was: the 48px rail has room for the avatar
+          and nothing beside it, and the row's own `title` already names the account
+          there.
+        */}
         {!isCollapsed && (
-          <button
-            type="button"
+          <NavLink
+            to={ROUTES.SETTINGS}
             aria-label="Settings"
-            title="Settings are not available yet"
-            disabled
-            className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-xl text-primary transition-all duration-200 ease-linear hover:bg-fill-secondary disabled:pointer-events-none disabled:opacity-60"
+            className={({ isActive }) =>
+              cn(
+                'flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-xl text-primary transition-all duration-200 ease-linear hover:bg-fill-secondary',
+                { 'bg-fill-secondary': isActive },
+              )
+            }
           >
             <SettingsIcon className="size-5" />
-          </button>
+          </NavLink>
         )}
       </div>
     </div>

@@ -2,7 +2,9 @@ import type { FC } from 'react'
 import { useDisplayName } from '@/modules/core/hooks/use-identity'
 import { Composer } from './components/composer'
 import { MessageList } from './components/message-list'
+import { SecretKeyCard } from './components/secret-key-card'
 import { ThreadHeader } from './components/thread-header'
+import { useSecretRequest } from './hooks/use-secret-request'
 import { useThread } from './hooks/use-thread'
 
 interface ThreadViewProps {
@@ -29,6 +31,7 @@ export const ThreadView: FC<ThreadViewProps> = ({
   const { thread, connection } = useThread(profile)
   const displayName = useDisplayName(profile)
   const working = thread?.status === 'working'
+  const secret = useSecretRequest(profile)
 
   const columnClassName = panelOpen ? 'w-[600px] max-w-[90%]' : 'w-[768px] max-w-full'
 
@@ -50,6 +53,7 @@ export const ThreadView: FC<ThreadViewProps> = ({
         working={working}
         error={thread?.error}
         columnClassName={columnClassName}
+        {...(secret.request ? { secretRequestId: secret.request.requestId } : {})}
       />
 
       <Composer
@@ -58,6 +62,20 @@ export const ThreadView: FC<ThreadViewProps> = ({
         working={working}
         connection={connection}
         columnClassName={columnClassName}
+        {...(secret.request
+          ? {
+              above: (
+                <SecretKeyCard
+                  label={secret.label}
+                  envVar={secret.request.envVar}
+                  {...(secret.request.prompt ? { help: secret.request.prompt } : {})}
+                  onSubmit={(value) => void secret.submit(value)}
+                  onSkip={() => void secret.skip()}
+                  isSubmitting={secret.isSubmitting}
+                />
+              ),
+            }
+          : {})}
       />
     </div>
   )

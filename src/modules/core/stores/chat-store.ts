@@ -19,6 +19,7 @@ import type {
   MessageCompletePayload,
   MessageDeltaPayload,
   ReasoningDeltaPayload,
+  SecretRequestPayload,
   StatusUpdatePayload,
   ToolCompletePayload,
   ToolStartPayload,
@@ -66,15 +67,33 @@ interface ChatState {
   setConnection: (state: ConnectionState, detail?: string) => void
   ensureThread: (profile: string) => void
   hydrate: (profile: string) => Promise<void>
+  /** The read itself. Go through `hydrate`, which dedupes it. */
+  readHistory: (profile: string) => Promise<void>
   send: (profile: string, text: string) => Promise<void>
   stop: (profile: string) => Promise<void>
   clearApproval: (profile: string) => void
   answerClarify: (profile: string, text: string) => Promise<void>
+  /**
+   * `value` is a parameter and never state: it is forwarded to `secret.respond`
+   * and dropped. Nothing about it is stored, logged or put in an error.
+   */
+  submitSecret: (profile: string, value: string) => Promise<void>
+  skipSecret: (profile: string) => Promise<void>
   applyEvent: (event: GatewayEvent) => void
 }
 
 /** Set outside the store so it is not part of rendered state. */
 let sessions: SessionManager | null = null
+
+/**
+ * In-flight hydrations, so two callers cannot both read the same transcript.
+ *
+ * `hydrated` is only set when the read RESOLVES, so the flag alone does not
+ * close the window: StrictMode double-invokes the effect in dev, and a thread
+ * switched away from and back to re-runs it, and both arrivals used to fetch a
+ * full transcript. Outside the store for the same reason `sessions` is.
+ */
+const hydrating = new Map<string, Promise<void>>()
 
 export const useChatStore = create<ChatState>((set, get) => ({
   connection: 'idle',
@@ -114,6 +133,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
   hydrate: async (profile) => {
     get().ensureThread(profile)
     if (get().threads[profile]?.hydrated) return
+    if (!sessions) return
+
+    const running = hydrating.get(profile)
+    if (running) return running
+
+    const read = get().readHistory(profile)
+    hydrating.set(profile, read)
+    try {
+      await read
+    } finally {
+      hydrating.delete(profile)
+    }
+  },
+
+  readHistory: async (profile) => {
     if (!sessions) return
 
     try {
@@ -221,8 +255,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const thread = state.threads[profile]
       if (!thread) return state
       const next: EmployeeThread = { ...thread, approval: undefined }
-      // An open clarify is the other thing that owns `needs-you`.
-      if (thread.status === 'needs-you' && !thread.clarify) next.status = 'working'
+      // An open clarify or secret request is the other thing that owns
+      // `needs-you`, and either one outlives the approval being cleared.
+      if (thread.status === 'needs-you' && !thread.clarify && !thread.secret) {
+        next.status = 'working'
+      }
       return { threads: { ...state.threads, [profile]: next } }
     })
   },
@@ -254,6 +291,71 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // A second clarify may already have replaced this one.
       if (!thread || thread.clarify?.requestId !== request.requestId) return state
       return { threads: { ...state.threads, [profile]: clearClarify(thread) } }
+    })
+  },
+
+  /**
+   * Hand over the credential a skill is blocked on. Like a clarify, the agent
+   * thread is parked inside `_block()` — with no timeout at all on this one — so
+   * this call, or `skipSecret`, is the only thing that releases it.
+   *
+   * `value` is read from the argument and passed to `sessions.respondSecret`.
+   * That is the whole of its life in this app: it is never written to the
+   * thread, never logged, and never interpolated into an error message. The
+   * secret is not in the tool result either — Hermes asserts that server-side —
+   * so the transcript truthfully never carries it.
+   */
+  submitSecret: async (profile, value) => {
+    const request = get().threads[profile]?.secret
+    if (!request || !sessions) return
+    try {
+      await sessions.respondSecret(profile, request.requestId, value)
+    } catch (err) {
+      // Leave the card standing: the agent is still parked, so retrying is the
+      // human's only way through. The message is the transport's, never the
+      // value — a failed send must not turn the secret into rendered state.
+      set((state) => {
+        const thread = state.threads[profile]
+        if (!thread) return state
+        return {
+          threads: { ...state.threads, [profile]: { ...thread, error: (err as Error).message } },
+        }
+      })
+      return
+    }
+    set((state) => {
+      const thread = state.threads[profile]
+      // A second request may already have replaced this one.
+      if (!thread || thread.secret?.requestId !== request.requestId) return state
+      return { threads: { ...state.threads, [profile]: clearSecret(thread) } }
+    })
+  },
+
+  /**
+   * "Not now". Declining is a real answer, not a dismissal: it releases the
+   * parked thread at once and the agent carries on without the key, whereas
+   * simply closing the card would leave it parked — which is what a hang looks
+   * like from the outside.
+   */
+  skipSecret: async (profile) => {
+    const request = get().threads[profile]?.secret
+    if (!request || !sessions) return
+    try {
+      await sessions.skipSecret(profile, request.requestId)
+    } catch (err) {
+      set((state) => {
+        const thread = state.threads[profile]
+        if (!thread) return state
+        return {
+          threads: { ...state.threads, [profile]: { ...thread, error: (err as Error).message } },
+        }
+      })
+      return
+    }
+    set((state) => {
+      const thread = state.threads[profile]
+      if (!thread || thread.secret?.requestId !== request.requestId) return state
+      return { threads: { ...state.threads, [profile]: clearSecret(thread) } }
     })
   },
 
@@ -446,6 +548,40 @@ export function reduceEvent(thread: EmployeeThread, event: GatewayEvent): Employ
       return clearClarify(thread)
     }
 
+    case 'secret.request': {
+      // A skill declared a required env var, the env file does not have it, and
+      // the gateway is parked inside `_block("secret.request", ...)` — passed no
+      // timeout, so it waits indefinitely for `secret.respond`. Nothing else
+      // moves in this session until the human answers or declines.
+      //
+      // Only the REQUEST is stored. The value never enters this store: it goes
+      // from the input straight into the RPC params (see `submitSecret`), which
+      // is what makes "never printed in the transcript" a true statement rather
+      // than a promise.
+      const secret = payload as SecretRequestPayload
+      if (!secret.request_id) return thread
+      return {
+        ...thread,
+        secret: {
+          requestId: secret.request_id,
+          envVar: secret.env_var ?? '',
+          prompt: secret.prompt ?? '',
+          ...(secret.metadata ? { metadata: secret.metadata } : {}),
+        },
+        status: 'needs-you',
+      }
+    }
+
+    case 'secret.expire': {
+      // Same rule as `clarify.expire`, and stricter: the secret wait is given no
+      // timeout at all, so this event is the *only* thing that ends it and the
+      // UI must never expire the card itself.
+      const expire = payload as BlockingRequestExpirePayload
+      if (!thread.secret) return thread
+      if (expire.request_id && expire.request_id !== thread.secret.requestId) return thread
+      return clearSecret(thread)
+    }
+
     case 'error': {
       const error = payload as ErrorPayload
       const message = error.message ?? error.detail ?? 'The agent reported an error.'
@@ -464,34 +600,35 @@ export function reduceEvent(thread: EmployeeThread, event: GatewayEvent): Employ
       // event types than this UI models, and a new one must not break the
       // thread. Two of the unhandled ones are worth acting on eventually:
       // `notification.show` is the credits/quota channel, and the blocking
-      // `secret.request` / `sudo.request` still park the agent thread with
-      // nobody answering the matching `*.respond`, so those read as a hang.
-      // (`clarify.request` used to land here too — it is handled above now.)
+      // `sudo.request` still parks the agent thread with nobody answering
+      // `sudo.respond`, so that one reads as a hang.
+      // (`clarify.request` and `secret.request` used to land here too — both are
+      // handled above now.)
       return thread
   }
 }
 
 /**
  * Settle the ready/needs-you side of a turn ending, whichever terminal fired.
- * An outstanding clarify counts as much as an approval: the human still owes the
- * agent an answer, and downgrading to `ready` hides the card's own thread from
- * the roster and the dashboard.
+ * An outstanding clarify or secret request counts as much as an approval: the
+ * human still owes the agent an answer, and downgrading to `ready` hides the
+ * card's own thread from the roster and the dashboard.
  */
 function endTurn(thread: EmployeeThread): EmployeeThread {
   return {
     ...thread,
     messages: reapRunningTools(thread.messages),
-    status: thread.approval || thread.clarify ? 'needs-you' : 'ready',
+    status: waitingOnHuman(thread) ? 'needs-you' : 'ready',
     workingSince: undefined,
     statusText: undefined,
   }
 }
 
-/**
- * Answered or expired: the parked agent thread carries on with its turn, so the
- * thread goes back to `working` — unless an approval is also outstanding, or the
- * turn had already ended around the open card.
- */
+/** The three cards that park a thread on the human, and own `needs-you`. */
+function waitingOnHuman(thread: EmployeeThread): boolean {
+  return Boolean(thread.approval || thread.clarify || thread.secret)
+}
+
 /**
  * Pull the noVNC address out of a `browser_navigate` result, rewriting its host.
  *
@@ -536,11 +673,21 @@ export function liveUrlFrom(result: unknown): string | undefined {
 }
 
 function clearClarify(thread: EmployeeThread): EmployeeThread {
-  return {
-    ...thread,
-    clarify: undefined,
-    status: thread.status === 'needs-you' && !thread.approval ? 'working' : thread.status,
-  }
+  return released({ ...thread, clarify: undefined })
+}
+
+function clearSecret(thread: EmployeeThread): EmployeeThread {
+  return released({ ...thread, secret: undefined })
+}
+
+/**
+ * Answered or expired: the parked agent thread carries on with its turn, so the
+ * thread goes back to `working` — unless another card is still standing, or the
+ * turn had already ended around the one just closed.
+ */
+function released(thread: EmployeeThread): EmployeeThread {
+  if (thread.status !== 'needs-you' || waitingOnHuman(thread)) return thread
+  return { ...thread, status: 'working' }
 }
 
 function lastStreamingIndex(messages: ChatMessage[]): number {

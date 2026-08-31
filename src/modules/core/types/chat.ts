@@ -73,6 +73,28 @@ export interface ApprovalRequest {
 }
 
 /**
+ * A `secret.request` after validation — a skill declared a required env var, the
+ * env file does not have it, and the gateway has parked the whole agent thread
+ * inside `_block()` until `secret.respond` arrives. That wait is passed no
+ * timeout at all (`tui_gateway/server.py`), so it is even less expirable than a
+ * clarify: `secret.expire` is the only end-of-wait signal there is.
+ *
+ * There is deliberately no `value` field, and one must never be added. What the
+ * human types goes from the input straight into the `secret.respond` params —
+ * Hermes writes it to the profile's env file itself at 0600 and omits it from
+ * the tool result — so nothing in this app ever holds the secret.
+ */
+export interface SecretRequest {
+  requestId: string
+  /** The env var the skill declared, e.g. `LINEAR_API_KEY`. */
+  envVar: string
+  /** The sentence the skill wrote for the human, e.g. where to get the key. */
+  prompt: string
+  /** Whatever the skill attached — its own name, a docs URL. Free-form. */
+  metadata?: Record<string, unknown>
+}
+
+/**
  * Hermes exposes no per-profile runtime status — the only status-like field on
  * a profile is a `gateway_running` boolean, which is about the messaging
  * gateway, not about whether the agent is mid-thought. These three states are
@@ -94,6 +116,12 @@ export interface EmployeeThread {
    * honest one — see `ClarifyRequest`.
    */
   clarify?: ClarifyRequest
+  /**
+   * The agent hit a credential it does not have and its whole thread is parked
+   * on `secret.respond`. Only the REQUEST lives here — never the value the human
+   * types. See `SecretRequest`.
+   */
+  secret?: SecretRequest
   /**
    * noVNC page for the browser this employee is driving, once we have seen one.
    *

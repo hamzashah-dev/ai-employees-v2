@@ -45,11 +45,19 @@ function write(overrides: Record<string, IdentityOverride>): void {
   }
 }
 
-/** Drops keys the user has cleared, so an emptied override stops shadowing the derivation. */
+/**
+ * Drops keys the user has cleared, so an emptied override stops shadowing the derivation.
+ *
+ * `prop` is the one field where `null` is a value rather than an absence: it means the user
+ * deliberately took the job glyph off. Pruning it the way the others are pruned would make
+ * that choice unrepresentable — the derivation would put the catalogue's prop straight back
+ * on the next render — so it is kept whenever it is not `undefined`.
+ */
 function prune(override: IdentityOverride): IdentityOverride | undefined {
   const next: IdentityOverride = {}
   if (override.colorIndex != null) next.colorIndex = override.colorIndex
   if (override.shape != null) next.shape = override.shape
+  if (override.prop !== undefined) next.prop = override.prop
   if (override.title?.trim()) next.title = override.title.trim()
   return Object.keys(next).length > 0 ? next : undefined
 }

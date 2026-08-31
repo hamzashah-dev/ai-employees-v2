@@ -193,7 +193,7 @@ const CreateGroupFlow: FC<Omit<CreateGroupDialogProps, 'open'>> = ({
               key={member}
               className="flex items-center gap-2 rounded-full bg-fill-elevated py-1 pr-2.5 pl-1"
             >
-              <EmployeeAvatar profile={member} className="size-6" />
+              <EmployeeAvatar profile={member} size={24} />
               <span className="text-label-sm text-primary">{member}</span>
               {selected.length > GROUP_MIN_MEMBERS && (
                 <button

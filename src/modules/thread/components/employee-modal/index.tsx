@@ -11,7 +11,6 @@ import { ConnectorsSection } from './components/connectors-section'
 import { FilesSection } from './components/files-section'
 import { InfoPage } from './components/info-page'
 import { ModalRail } from './components/modal-rail'
-import { VaultsSection } from './components/vaults-section'
 import { useEmployeeCard } from './hooks/use-employee-card'
 import { useIdentityEditor } from './hooks/use-identity-editor'
 import { describeEmployeeState } from './utils/employee-state'
@@ -35,8 +34,10 @@ export interface EmployeeModalProps {
  *   with no per-file attribution because Hermes keeps none.
  * - **Connectors** are the profile's MCP servers, listed and toggled against live
  *   endpoints. Sign-in state is the one thing the payload does not carry.
- * - **Vaults** are the employee's own `.env`, read and written through `/api/env` under
- *   `_profile_scope` — the only per-employee credential store Hermes has.
+ *
+ * There is deliberately no Vaults page. Keys are held once, for the whole roster, on
+ * Settings › Vault — so a per-employee credential page would be a second place to look for
+ * one store, and would imply an employee-scoped vault that no longer exists.
  */
 export const EmployeeModal: FC<EmployeeModalProps> = ({
   profile,
@@ -114,9 +115,6 @@ const EmployeeCard: FC<{ profile: string }> = ({ profile }) => {
             <FilesSection profile={profile} displayName={editor.displayName} />
           )}
           {card.page === 'connectors' && <ConnectorsSection profile={profile} />}
-          {card.page === 'vaults' && (
-            <VaultsSection profile={profile} displayName={editor.displayName} />
-          )}
         </div>
       </div>
     </div>

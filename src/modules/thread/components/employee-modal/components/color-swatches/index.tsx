@@ -13,19 +13,19 @@ interface ColorSwatchesProps {
 }
 
 /**
- * The eleven employee hues.
+ * The eight employee hues.
  *
  * The fill is an inline style rather than a class because `IDENTITY_COLORS` is the bot's own
- * palette — the same values `BotGlyph` puts in an SVG `fill` and `BotAvatar` hands to a 3D
- * material. Writing them as arbitrary Tailwind colour values would be the banned thing;
- * reading them from the one constant that owns the palette is not.
+ * palette — the same values `BotMark` puts in an SVG `fill`. Writing them as arbitrary
+ * Tailwind colour values would be the banned thing; reading them from the one constant that
+ * owns the palette is not.
  *
  * The chosen swatch is ringed with a two-step shadow — a gap in the tray's own colour, then
- * white — rather than an `outline`. Against eleven hues, several of which are pale, a single
- * ring drawn directly on the swatch edge disappears into Snow and Slate; the dark gap gives
- * it something to sit against at every hue.
+ * white — rather than an `outline`. A single ring drawn directly on the swatch edge
+ * disappears into the palest hues; the dark gap gives it something to sit against at every
+ * one. That mattered more when the palette carried Snow, but Slate still needs it.
  *
- * A radiogroup rather than eleven buttons: picking a colour is picking *one of* a set, and
+ * A radiogroup rather than eight buttons: picking a colour is picking *one of* a set, and
  * arrow-key navigation between them comes free from the role.
  */
 export const ColorSwatches: FC<ColorSwatchesProps> = ({ activeIndex, onSelect }) => (
@@ -55,12 +55,12 @@ export const ColorSwatches: FC<ColorSwatchesProps> = ({ activeIndex, onSelect })
 
     {/*
       The canvas ends the row with a `+`. There is nothing behind it: the palette is the
-      eleven bot hues and they are a local constant, not a Hermes field — see
+      eight bot hues and they are a local constant, not a Hermes field — see
       `stores/identity-store`. A live control leading to a colour picker that could not save
       anywhere would be worse than one that says so.
     */}
     <WithTooltip
-      content="The palette is fixed to these eleven hues"
+      content="The palette is fixed to these eight hues"
       size="sm"
       showArrow={false}
       className="inline-flex"
@@ -69,7 +69,7 @@ export const ColorSwatches: FC<ColorSwatchesProps> = ({ activeIndex, onSelect })
       <button
         type="button"
         disabled
-        aria-label="Add a colour — the palette is fixed to these eleven hues"
+        aria-label="Add a colour — the palette is fixed to these eight hues"
         className="flex size-[22px] shrink-0 items-center justify-center rounded-full border border-secondary-hover text-tertiary"
       >
         <PlusIcon className="size-3 stroke-[1.4px]" />

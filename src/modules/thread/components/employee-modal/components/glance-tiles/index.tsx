@@ -20,12 +20,12 @@ interface GlanceTilesProps {
 }
 
 /**
- * The four tiles that make Info worth landing on.
+ * The tiles that make Info worth landing on.
  *
  * Before these, Info held an avatar, a name and a model, and three-quarters of the card was
- * empty while Files, Connectors and Vaults each hid behind a click — so the only way to
- * learn that all three were empty was to open all three. Each tile states what the page
- * behind it holds, which turns the landing page into a summary rather than a lobby.
+ * empty while Files and Connectors each hid behind a click — so the only way to learn that
+ * both were empty was to open both. Each tile states what the page behind it holds, which
+ * turns the landing page into a summary rather than a lobby.
  *
  * They are buttons, not links: this is a dialog, and navigating out of it would lose the
  * thread behind it. The arrow is the standing hint that the tile goes somewhere.

@@ -117,3 +117,58 @@
 @utility ring-offset-surface {
   --tw-ring-offset-color: var(--background-color-surface);
 }
+
+/*
+ * The blink.
+ *
+ * A CSS animation on the eye group rather than a JS timer, because the previous 3D bot ran a
+ * rAF-driven blink and that is exactly the cost a roster cannot pay — fifty rows would mean
+ * fifty timers, which is the sort of thing that is invisible until the tab has been open an
+ * hour. One declarative keyframe compositor-side costs nothing per additional avatar.
+ *
+ * `transform-origin` is in the body's own 34-unit user space, not pixels: the eye group rides
+ * `BODY_TRANSFORM`, so 17,17 is its centre whatever the avatar is rendered at. Scaling from
+ * the default 50% of the element's own bounding box would make the lids close off-centre.
+ *
+ * The lid shuts for a sliver of the cycle rather than reaching zero — a true 0 renders as a
+ * one-frame disappearance instead of a blink.
+ */
+@keyframes bot-mark-blink {
+  0%,
+  93%,
+  100% {
+    transform: scaleY(1);
+  }
+  96.5% {
+    transform: scaleY(0.08);
+  }
+}
+
+.bot-mark-eyes {
+  transform-origin: 17px 17px;
+  animation: bot-mark-blink 5.4s infinite;
+}
+
+/*
+ * Staggered so a roster does not blink in unison, which reads as a glitch rather than as a
+ * room full of characters. Eight buckets is enough to break the pattern without needing a
+ * per-instance inline style, which would defeat the point of keeping this in CSS.
+ */
+.bot-mark-eyes:nth-of-type(8n + 1) {
+  animation-delay: 0.7s;
+}
+.bot-mark-eyes:nth-of-type(8n + 2) {
+  animation-delay: 1.9s;
+}
+.bot-mark-eyes:nth-of-type(8n + 3) {
+  animation-delay: 3.1s;
+}
+.bot-mark-eyes:nth-of-type(8n + 4) {
+  animation-delay: 4.3s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bot-mark-eyes {
+    animation: none;
+  }
+}

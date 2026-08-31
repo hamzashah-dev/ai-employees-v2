@@ -86,9 +86,13 @@ export interface CategoryStyle {
 
 /*
  * Named rather than destructured by position. The shelf borrows the employee palette so a
- * category chip and an avatar cannot disagree about what "blue" is, but it wants six
- * specific hues out of the eleven — picking them by index would make the palette's order
- * load-bearing for a file that has nothing to do with it.
+ * category chip and an avatar cannot disagree about what "blue" is, but it wants six specific
+ * hues out of the eight — picking them by index would make the palette's order load-bearing
+ * for a file that has nothing to do with it.
+ *
+ * `cherry` used to fill the warm slot. It went when the palette was re-tuned for flat fills,
+ * and `rose` takes its place: it is the only remaining hue in that part of the wheel, and it
+ * keeps Creative and Health & Wellbeing distinct from the greens and blues either side.
  */
 const {
   sky: BLUE,
@@ -96,7 +100,7 @@ const {
   amber: YELLOW,
   grape: PURPLE,
   leaf: GREEN,
-  cherry: RED,
+  rose: PINK,
 } = IDENTITY_COLOR_BY_NAME
 
 export const CATEGORY_STYLES: Record<AgentCategory, CategoryStyle> = {
@@ -105,10 +109,10 @@ export const CATEGORY_STYLES: Record<AgentCategory, CategoryStyle> = {
   'Business Ops': { Icon: ToolBoxIcon, color: GREEN },
   Content: { Icon: FileTextIcon, color: CYAN },
   Research: { Icon: TelescopeIcon, color: BLUE },
-  Creative: { Icon: ColorPaletteIcon, color: RED },
+  Creative: { Icon: ColorPaletteIcon, color: PINK },
   'Home & Devices': { Icon: HomeIcon, color: YELLOW },
   Money: { Icon: DollarSignIcon, color: GREEN },
-  'Health & Wellbeing': { Icon: HeartPulseIcon, color: RED },
+  'Health & Wellbeing': { Icon: HeartPulseIcon, color: PINK },
   Comms: { Icon: ChatBubbleIcon, color: CYAN },
   Learning: { Icon: GraduationCapIcon, color: YELLOW },
   'Security & Privacy': { Icon: ShieldCheckIcon, color: BLUE },

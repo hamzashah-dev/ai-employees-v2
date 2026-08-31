@@ -12,7 +12,7 @@ interface EmptyStateProps {
  */
 export const EmptyState: FC<EmptyStateProps> = ({ profile, displayName }) => (
   <div className="flex flex-col items-center gap-3 py-20 text-center">
-    <EmployeeAvatar profile={profile} className="size-12" />
+    <EmployeeAvatar profile={profile} size={48} />
     <p className="text-heading-sm text-primary">{displayName}</p>
     <p className="max-w-[360px] text-label-md text-tertiary">
       Nothing here yet. Describe the work and {displayName} will pick it up.

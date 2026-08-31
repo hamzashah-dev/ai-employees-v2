@@ -22,6 +22,8 @@ interface MessageListProps {
   /** Thread-level failure, e.g. history could not be loaded. */
   error?: string
   columnClassName: string
+  /** Id of the standing secret request, if any — see the contentKey note below. */
+  secretRequestId?: string
 }
 
 export const MessageList: FC<MessageListProps> = ({
@@ -32,11 +34,25 @@ export const MessageList: FC<MessageListProps> = ({
   working,
   error,
   columnClassName,
+  secretRequestId,
 }) => {
+  /*
+   * Read here rather than passed down: the card belongs *in the transcript* —
+   * "asked in the thread", not in a menu or a modal — and the agent thread is
+   * parked with no timeout until it is answered, so the row has to appear
+   * wherever the conversation is being read. Same shape as `ApprovalCard`
+   * reaching for the store itself.
+   */
+
   const last = messages[messages.length - 1]
   // Everything that can change the column's height: a new message, more
-  // streamed text, another tool row, the approval card appearing.
-  const contentKey = `${messages.length}:${last?.text.length ?? 0}:${last?.segments.length ?? 0}:${approval?.id ?? ''}:${error ?? ''}`
+  // streamed text, another tool row, or the approval card appearing.
+  //
+  // `secretRequestId` is in here even though the secret card renders in the
+  // COMPOSER, not the transcript: docking it makes the prompt box taller, which
+  // shrinks this column, so the view has to re-stick to the bottom or the last
+  // message ends up hidden behind the card.
+  const contentKey = `${messages.length}:${last?.text.length ?? 0}:${last?.segments.length ?? 0}:${approval?.id ?? ''}:${secretRequestId ?? ''}:${error ?? ''}`
 
   const { scrollRef, atBottom, scrollToBottom } = useStickToBottom<HTMLDivElement>(
     contentKey,

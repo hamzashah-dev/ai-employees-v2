@@ -1,11 +1,9 @@
 import { useState } from 'react'
-import { useProfileEnv } from '@/modules/core/hooks/use-profile-env'
 import { useConnectors } from '@/modules/thread/hooks/use-connectors'
 import { MODAL_PAGES } from '../../constants'
 import type { GlanceTile } from '../../components/glance-tiles'
 import type { EmployeeModalPage } from '../../types'
 import { namesOfEnabled, summariseConnectors } from '../../utils/connector-state'
-import { toVaultKeys } from '../../utils/vault-keys'
 import type { WorkspaceFileRow } from '../../utils/workspace-files'
 import { useWorkspaceFiles } from '../use-workspace-files'
 
@@ -42,19 +40,13 @@ export function useEmployeeCard(
 
   const files = useWorkspaceFiles(profile)
   const connectors = useConnectors(profile)
-  const env = useProfileEnv(profile)
 
   const filesReady = !files.isLoading && !files.error
   const connReady = !connectors.isLoading && !connectors.error
-  const envReady = !env.isPending && !env.isError
-
-  const vaultKeys = envReady ? toVaultKeys(env.data) : []
-  const managed = vaultKeys.filter((key) => key.channelManaged).length
 
   const counts: Partial<Record<EmployeeModalPage, number>> = {}
   if (filesReady) counts.files = files.files.length
   if (connReady) counts.connectors = connectors.servers.length
-  if (envReady) counts.vaults = vaultKeys.length
 
   const newest = files.files[0]
 
@@ -74,16 +66,6 @@ export function useEmployeeCard(
           ? `Last written ${newest.timeLabel}`
           : 'Nothing written yet'
         : 'Reading workspace',
-    },
-    {
-      page: 'vaults',
-      label: 'Vaults',
-      value: envReady ? `${vaultKeys.length} ${plural(vaultKeys.length, 'key')}` : '…',
-      note: envReady
-        ? managed > 0
-          ? `${managed} managed by Channels`
-          : 'All editable here'
-        : 'Reading keys',
     },
     {
       // Stays on Info: the model's control is the picker on the state line above, so the

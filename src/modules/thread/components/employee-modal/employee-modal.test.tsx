@@ -11,13 +11,11 @@ import type {
   HermesManagedFile,
   HermesMcpServer,
 } from '@/modules/core/services/hermes/types'
-import type { ProfileEnv } from '@/modules/core/services/hermes/rest'
 import { useChatStore } from '@/modules/core/stores/chat-store'
 import { useIdentityStore } from '@/modules/core/stores/identity-store'
 import { ThreadHeader } from '../thread-header'
 import { describeConnector, summariseConnectors } from './utils/connector-state'
 import { describeEmployeeState } from './utils/employee-state'
-import { isValidKeyName, toVaultKeys } from './utils/vault-keys'
 import { describeFileKind, formatFileSize } from './utils/file-kind'
 import { toWorkspaceFileRows } from './utils/workspace-files'
 import {
@@ -135,29 +133,6 @@ const ENV: HermesEnvResponse = {
     category: 'messaging',
     channel_managed: true,
   },
-}
-
-/**
- * The same narrowing `fetchProfileEnv` applies, so the unit tests below exercise
- * `toVaultKeys` against the shape it is really handed rather than a hand-built one.
- */
-function fromWire(rows: HermesEnvResponse): ProfileEnv {
-  return Object.fromEntries(
-    Object.entries(rows).map(([name, row]) => [
-      name,
-      {
-        isSet: row.is_set === true,
-        isPassword: row.is_password === true,
-        redactedValue: row.redacted_value ?? null,
-        description: row.description ?? '',
-        category: row.category ?? '',
-        providerLabel: row.provider_label ?? '',
-        tools: row.tools ?? [],
-        channelManaged: row.channel_managed === true,
-        custom: row.custom === true,
-      },
-    ]),
-  )
 }
 
 interface Recorded {
@@ -278,7 +253,7 @@ async function openModal(): Promise<ReturnType<typeof userEvent.setup>> {
 /** The card opens on Info; every other page is one rail click away. */
 async function openPage(
   user: ReturnType<typeof userEvent.setup>,
-  page: 'Info' | 'Files' | 'Connectors' | 'Vaults',
+  page: 'Info' | 'Files' | 'Connectors',
 ): Promise<void> {
   await user.click(screen.getByRole('button', { name: page }))
 }
@@ -458,9 +433,6 @@ describe('EmployeeModal', () => {
     expect(
       screen.getByRole('button', { name: 'Connectors: 1 of 2 on. github' }),
     ).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Vaults: 3 keys. 1 managed by Channels' }),
-    ).toBeInTheDocument()
     // The newest file previews here, so an empty workspace needs no click to discover.
     expect(screen.getByText('prospects.csv')).toBeInTheDocument()
 
@@ -475,24 +447,21 @@ describe('EmployeeModal', () => {
     expect(screen.getByText('stdio · 1 tool')).toBeInTheDocument()
     expect(screen.getByText('1 of 2 on')).toBeInTheDocument()
 
-    await openPage(user, 'Vaults')
-    expect(await screen.findByText('Credentials · 3')).toBeInTheDocument()
-    expect(screen.getByText('OPENROUTER_API_KEY')).toBeInTheDocument()
   })
 
   it('sends a glance tile to the page it summarises', async () => {
     stubFetch({ servers: SERVERS, files: FILES, env: ENV })
     const user = await openModal()
 
-    await user.click(await screen.findByRole('button', { name: /^Vaults: 3 keys/ }))
-    expect(await screen.findByText('Credentials · 3')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Vaults' })).toHaveAttribute(
+    await user.click(await screen.findByRole('button', { name: 'Connectors: 1 of 2 on. github' }))
+    expect(await screen.findByText('1 of 2 on')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Connectors' })).toHaveAttribute(
       'aria-current',
       'page',
     )
   })
 
-  it('marks the open page and leaves the other three unmarked', async () => {
+  it('marks the open page and leaves the others unmarked', async () => {
     stubFetch()
     const user = await openModal()
 
@@ -500,8 +469,8 @@ describe('EmployeeModal', () => {
       'aria-current',
       'page',
     )
-    await openPage(user, 'Vaults')
-    expect(screen.getByRole('button', { name: 'Vaults' })).toHaveAttribute(
+    await openPage(user, 'Connectors')
+    expect(screen.getByRole('button', { name: 'Connectors' })).toHaveAttribute(
       'aria-current',
       'page',
     )
@@ -582,11 +551,11 @@ describe('EmployeeModal', () => {
     expect(useIdentityStore.getState().overrides['sales-outbound']).toBeUndefined()
   })
 
-  it('keeps a colour choice, and offers no way to invent a twelfth', async () => {
+  it('keeps a colour choice, and offers no way to invent a ninth', async () => {
     stubFetch({ servers: [], files: [] })
     const user = await openModal()
 
-    // Colour and shape live behind the pencil now: the eleven-dot grid no longer floats
+    // Colour and shape live behind the pencil now: the eight-dot grid no longer floats
     // over the name whether or not anyone is editing.
     expect(screen.queryByRole('radio', { name: 'Grape' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Edit Sales Outbound' }))
@@ -608,16 +577,13 @@ describe('EmployeeModal', () => {
     expect(avatars).toHaveLength(2)
     for (const avatar of avatars) {
       /*
-       * Both avatars fall back to the flat `BotGlyph` in jsdom (no WebGL for the modal's 3D
-       * hero, none for the roster's baked sprite either), and the glyph paints its body with
-       * a gradient. The midpoint stop is the employee's own hue — all that matters here is
-       * that both repainted.
+       * Both avatars are the same flat `BotMark`, so the body carries the hue directly as a
+       * `fill`. It used to be read off a gradient's midpoint stop, which was an artefact of
+       * the glyph faking 3D shading rather than anything the test cared about — all that
+       * matters here is that both repainted.
        */
-      const hue = avatar.querySelector('stop[offset="52%"]')
-      expect(hue).toHaveAttribute(
-        'stop-color',
-        IDENTITY_COLORS[IDENTITY_COLOR_NAMES.indexOf('Grape')],
-      )
+      const body = avatar.querySelector('[data-part="body"]')
+      expect(body).toHaveAttribute('fill', IDENTITY_COLORS[IDENTITY_COLOR_NAMES.indexOf('Grape')])
     }
 
     expect(screen.getByRole('button', { name: /Add a colour/ })).toBeDisabled()
@@ -759,10 +725,6 @@ describe('EmployeeModal', () => {
       await screen.findByText(/No MCP servers are configured for this employee/),
     ).toBeInTheDocument()
 
-    await openPage(user, 'Vaults')
-    expect(
-      await screen.findByText(/Sales Outbound holds no credentials/),
-    ).toBeInTheDocument()
   })
 })
 
@@ -808,153 +770,5 @@ describe('model picker', () => {
       expect(put?.url).toContain('/api/profiles/sales-outbound/model')
       expect(put?.body).toEqual({ provider: 'openrouter', model: 'z-ai/glm-4.7' })
     })
-  })
-})
-
-describe('toVaultKeys', () => {
-  it('lists only the keys that are set, because the endpoint answers the catalogue', () => {
-    // The real payload is 295 rows against 2 set. Without the `is_set` filter the page
-    // would claim the employee holds every service Hermes has ever heard of.
-    expect(toVaultKeys(fromWire(ENV)).map((row) => row.name)).toEqual([
-      'FAL_KEY',
-      'OPENROUTER_API_KEY',
-      'TELEGRAM_BOT_TOKEN',
-    ])
-  })
-
-  it('names where a key came from, most specific answer first', () => {
-    const rows = toVaultKeys(fromWire(ENV))
-    expect(rows.find((row) => row.name === 'OPENROUTER_API_KEY')?.origin).toBe('OpenRouter')
-    // No provider_label on this one, so it falls back to what the category says.
-    expect(rows.find((row) => row.name === 'FAL_KEY')?.origin).toBe('Tool credential')
-  })
-
-  it('carries channel_managed through, so the row can be left read-only', () => {
-    const telegram = toVaultKeys(fromWire(ENV)).find(
-      (row) => row.name === 'TELEGRAM_BOT_TOKEN',
-    )
-    expect(telegram?.channelManaged).toBe(true)
-  })
-
-  it('reads an unanswered store as empty rather than throwing', () => {
-    expect(toVaultKeys(undefined)).toEqual([])
-  })
-})
-
-describe('isValidKeyName', () => {
-  it('mirrors the rule save_env_value enforces, and nothing more', () => {
-    expect(isValidKeyName('OPENAI_API_KEY')).toBe(true)
-    expect(isValidKeyName('_private')).toBe(true)
-    expect(isValidKeyName('9LIVES')).toBe(false)
-    expect(isValidKeyName('HAS-DASH')).toBe(false)
-    expect(isValidKeyName('')).toBe(false)
-    // The denylist (PATH, LD_PRELOAD, COMPUTER_HOME) is deliberately server-side only: a
-    // copy here would drift, and a refusal comes back as a 400 the form prints verbatim.
-    expect(isValidKeyName('PATH')).toBe(true)
-  })
-})
-
-describe('EmployeeModal · Vaults', () => {
-  beforeEach(() => {
-    localStorage.clear()
-    useIdentityStore.setState({ overrides: {} })
-    useChatStore.setState({ threads: {}, connection: 'open' })
-  })
-
-  afterEach(() => vi.unstubAllGlobals())
-
-  it('shows the masked value Hermes computed, never a value of its own', async () => {
-    stubFetch({ env: ENV })
-    const user = await openModal()
-    await openPage(user, 'Vaults')
-
-    expect(await screen.findByText('k-or...8e34')).toBeInTheDocument()
-    expect(screen.getByText('OpenRouter')).toBeInTheDocument()
-  })
-
-  it('reveals a value through the audited endpoint, and hides it again locally', async () => {
-    const recorded = stubFetch({ env: ENV })
-    const user = await openModal()
-    await openPage(user, 'Vaults')
-
-    await user.click(await screen.findByRole('button', { name: 'Reveal OPENROUTER_API_KEY' }))
-    expect(await screen.findByText('sk-or-v1-the-real-thing')).toBeInTheDocument()
-
-    const reveal = recorded.find((call) => call.url.includes('/api/env/reveal'))
-    expect(reveal?.method).toBe('POST')
-    expect(reveal?.body).toEqual({ key: 'OPENROUTER_API_KEY', profile: 'sales-outbound' })
-
-    // Hiding is local — no second call, and the plaintext leaves the DOM.
-    await user.click(screen.getByRole('button', { name: 'Hide OPENROUTER_API_KEY' }))
-    expect(screen.queryByText('sk-or-v1-the-real-thing')).not.toBeInTheDocument()
-    expect(recorded.filter((call) => call.url.includes('/api/env/reveal'))).toHaveLength(1)
-  })
-
-  it('writes a new key to this employee’s own .env', async () => {
-    const recorded = stubFetch({ env: ENV })
-    const user = await openModal()
-    await openPage(user, 'Vaults')
-
-    await user.click(await screen.findByRole('button', { name: 'Add key' }))
-    await user.type(screen.getByLabelText('Key name'), 'stripe_secret')
-    await user.type(screen.getByLabelText('Key value'), 'sk_live_123')
-    await user.click(screen.getByRole('button', { name: 'Save' }))
-
-    await waitFor(() => {
-      const put = recorded.find((call) => call.method === 'PUT' && call.url.includes('/api/env'))
-      // Upper-cased in the field, and scoped by profile — `_profile_scope` re-roots
-      // COMPUTER_HOME so the write lands in this employee's .env and no other.
-      expect(put?.body).toEqual({
-        key: 'STRIPE_SECRET',
-        value: 'sk_live_123',
-        profile: 'sales-outbound',
-      })
-    })
-  })
-
-  it('refuses a malformed name before it reaches the wire', async () => {
-    const recorded = stubFetch({ env: ENV })
-    const user = await openModal()
-    await openPage(user, 'Vaults')
-
-    await user.click(await screen.findByRole('button', { name: 'Add key' }))
-    await user.type(screen.getByLabelText('Key name'), '9lives')
-    await user.type(screen.getByLabelText('Key value'), 'x')
-
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
-    expect(recorded.some((call) => call.method === 'PUT')).toBe(false)
-  })
-
-  it('removes a key through the endpoint that also clears its mirrors', async () => {
-    const recorded = stubFetch({ env: ENV })
-    const user = await openModal()
-    await openPage(user, 'Vaults')
-
-    await user.click(await screen.findByRole('button', { name: 'Manage FAL_KEY' }))
-    await user.click(await screen.findByRole('menuitem', { name: 'Remove' }))
-
-    await waitFor(() => {
-      const call = recorded.find((entry) => entry.method === 'DELETE')
-      expect(call?.url).toContain('/api/env')
-      expect(call?.body).toEqual({ key: 'FAL_KEY', profile: 'sales-outbound' })
-    })
-  })
-
-  it('leaves a channel-managed credential to the page that owns it', async () => {
-    stubFetch({ env: ENV })
-    const user = await openModal()
-    await openPage(user, 'Vaults')
-
-    // Listed, because the employee does hold it — but with no edit control, because the
-    // dashboard's Channels card configures the whole platform pairing, not one variable.
-    expect(await screen.findByText('TELEGRAM_BOT_TOKEN')).toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: 'Manage TELEGRAM_BOT_TOKEN' }),
-    ).not.toBeInTheDocument()
-    expect(
-      screen.getByRole('note', {
-        name: /TELEGRAM_BOT_TOKEN is managed by the Hermes dashboard/,
-      }),
-    ).toBeInTheDocument()
   })
 })

@@ -10,7 +10,7 @@ const GROUP_LABEL = 'text-label-xs text-tertiary uppercase'
 /**
  * Colour and shape, behind the pencil.
  *
- * These used to sit permanently beside the name — an eleven-dot grid floating over the
+ * These used to sit permanently beside the name — an eight-dot grid floating over the
  * identity whether or not anyone was editing, which made the loudest thing on the page a
  * control almost nobody touches. Folding them into a tray puts the employee first and the
  * paint job second.

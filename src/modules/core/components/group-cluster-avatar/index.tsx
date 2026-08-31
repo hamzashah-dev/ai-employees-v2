@@ -65,7 +65,23 @@ export const GroupClusterAvatar: FC<GroupClusterAvatarProps> = ({
     className={cn('relative block shrink-0', BOX[size], className)}
   >
     {members.slice(0, 3).map((member, index) => (
-      <EmployeeAvatar key={member} profile={member} className={cn('absolute', SLOTS[size][index])} />
+      <EmployeeAvatar
+        key={member}
+        profile={member}
+        /*
+         * The one place the visual size comes from a class rather than from `size`: each
+         * face is 14–27px depending on its slot, and `SLOTS` carries that geometry because
+         * the third sprite is deliberately smaller than the other two.
+         *
+         * `size` still has to be told something true, because it picks the detail tier. Every
+         * cluster face — the 14px one and the 27px one alike — sits in the same band: below
+         * the ground shadow's threshold and below the prop's, so all of them draw a bare body
+         * and a face. 20 states that, and the `SLOTS` class that follows wins the merge for
+         * the actual box.
+         */
+        size={20}
+        className={cn('absolute', SLOTS[size][index])}
+      />
     ))}
   </span>
 )

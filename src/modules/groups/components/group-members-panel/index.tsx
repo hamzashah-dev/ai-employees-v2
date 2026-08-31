@@ -73,7 +73,7 @@ export const GroupMembersPanel: FC<GroupMembersPanelProps> = ({
             key={member}
             className="group flex items-center gap-2.5 rounded-xl px-2.5 py-1.5 hover:bg-fill-variant-hover"
           >
-            <EmployeeAvatar profile={member} className="size-6" />
+            <EmployeeAvatar profile={member} size={24} />
             <span className="flex-1 truncate text-label-md text-primary">{member}</span>
             {canRemove && (
               <button

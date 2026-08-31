@@ -24,7 +24,7 @@ export const EmployeeSummary: FC<EmployeeSummaryProps> = ({ profile }) => {
       aria-label="Employee"
       className="flex items-start gap-2.5 border-t border-primary px-1 pt-3"
     >
-      <EmployeeAvatar profile={profile} className="size-10" />
+      <EmployeeAvatar profile={profile} size={40} />
       <div className="min-w-0 flex-1 space-y-1.5">
         <h2 className="truncate text-label-md font-medium text-primary">
           {displayName}

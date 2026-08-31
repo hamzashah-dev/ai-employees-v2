@@ -61,6 +61,9 @@ const NewGroupFlow = lazy(() =>
     default: m.NewGroupFlow,
   })),
 )
+const SettingsView = lazy(() =>
+  import('@/modules/settings').then((m) => ({ default: m.SettingsView })),
+)
 
 interface PageProps {
   onOpenSidebar: () => void
@@ -175,6 +178,18 @@ const Shell: FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const openSidebar = (): void => setSidebarOpen(true)
 
+  /*
+   * Settings is one page whose tab is a path segment, so it is mounted twice with
+   * the same element: `/settings` opens on Account, `/settings/:tab` is the
+   * linkable form each tab navigates to. Two mounts rather than an optional
+   * `:tab?` segment, which reads as a typo beside the rest of this map.
+   */
+  const settingsPage = (
+    <Page title="Settings" onOpenSidebar={openSidebar}>
+      <SettingsView />
+    </Page>
+  )
+
   return (
     <div className="flex h-screen flex-col bg-primary">
       <ConnectionBanner />
@@ -248,6 +263,9 @@ const Shell: FC = () => {
                 {@link TopBar} either.
               */}
               <Route path={`${ROUTES.GROUPS}/:roomId`} element={<GroupRoomView />} />
+
+              <Route path={ROUTES.SETTINGS} element={settingsPage} />
+              <Route path={`${ROUTES.SETTINGS}/:tab`} element={settingsPage} />
 
               {/*
                 The rest of the canvas's nav. Some are this app's own, unbuilt surfaces;
@@ -356,7 +374,7 @@ const UNBUILT_ROUTES: { path: string; title: string; detail: string }[] = [
     path: ROUTES.INTEGRATIONS,
     title: 'Integrations',
     detail:
-      'Connectors belong to the surrounding product. Mounted here because the Employees sidebar deliberately survives a hop onto it.',
+      'Connectors belong to the surrounding product. Mounted here because the Employees sidebar deliberately survives a hop onto it. This account’s own MCP connectors are in Settings → Connectors.',
   },
   {
     path: ROUTES.KNOWLEDGE,

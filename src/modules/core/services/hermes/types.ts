@@ -87,8 +87,22 @@ export const HERMES_EVENTS = [
   // forever. There is therefore no deadline a client may render. On expiry the
   // gateway emits the `.expire` twin so a late responder gets a clean signal
   // instead of a raw JSON-RPC "no pending request" error. `clarify.request` is
-  // answered (see `SessionManager.answerClarify`); `secret.request` and
-  // `sudo.request` still have nobody answering them, so those read as a hang.
+  // answered (`SessionManager.answerClarify`), and so is `secret.request`
+  // (`respondSecret` / `skipSecret`, plus the `secret.*` cases in `reduceEvent`).
+  // `sudo.request` is the one still left unanswered — nothing in this app calls
+  // `sudo.respond` — so that one alone reads as a hang, for the 120s
+  // `tui_gateway/server.py:8112` passes explicitly, until `sudo.expire` arrives.
+  //
+  // The secret wait is BOUNDED rather than open-ended, which is the opposite of
+  // what the call site looks like: the capture callback invokes `_block()` with
+  // no timeout argument (`tui_gateway/server.py:8119`), so `_block`'s own default
+  // of 300s applies (`:4550`). At the deadline `secret.expire` fires and the tool
+  // returns as though the human had skipped. A client must therefore handle
+  // expiry — retire the card, and do not report the key as saved — but it still
+  // must NOT draw a countdown: the payload carries no deadline (`prompt`,
+  // `env_var`, `request_id` and nothing else), the clock started when the server
+  // emitted rather than when we rendered, and a late `secret.respond` is accepted
+  // regardless (`allow_expired=True`) and answers `{status: "expired"}`.
   'clarify.request',
   'clarify.expire',
   'secret.request',
@@ -328,9 +342,39 @@ export interface SessionCreateResult {
 }
 
 export interface SessionResumeResult extends SessionCreateResult {
-  resumed?: boolean
+  /**
+   * Not a boolean, despite the name: the gateway echoes the durable id it
+   * matched. Verified live 2026-08-31 — a resume of `20260831_101319_9174a3`
+   * answers `resumed: "20260831_101319_9174a3"`. Only truthiness is safe to
+   * rely on.
+   */
+  resumed?: boolean | string
   running?: boolean
   status?: string
+}
+
+/**
+ * One row of `session.list`, which is how a persisted conversation is found
+ * again. `id` is the durable key `session.resume` matches on — the same
+ * namespace as `session.create`'s `stored_session_id`, not the short-lived
+ * `session_id` that `prompt.submit` takes.
+ *
+ * `resolved_id` follows a compression lineage to its live tip; prefer it when
+ * present, or a resume lands on a superseded ancestor.
+ */
+export interface SessionListRow {
+  id: string
+  resolved_id?: string
+  title?: string
+  preview?: string
+  started_at?: number
+  message_count?: number
+  /** Whatever `source` the creating surface declared, e.g. `employees-ui`. */
+  source?: string
+}
+
+export interface SessionListResult {
+  sessions?: SessionListRow[]
 }
 
 export interface PromptSubmitResult {
@@ -493,11 +537,80 @@ export interface HermesSearchResponse {
   results?: HermesSearchHit[]
 }
 
+/**
+ * `GET /api/status`, narrowed to the fields the Settings System card renders.
+ *
+ * The live payload is far wider — auth-gate shape, component rollup, memory
+ * pressure, FTS rebuild progress, per-gateway topology — and everything left out
+ * here is left out because nothing in this app draws it. Two kinds of absence are
+ * legitimate and neither is a failure:
+ *
+ *   - `computer_home` and `env_path` are added only `if not auth_required`, i.e.
+ *     on a loopback or `--insecure` bind. `/api/status` is in `PUBLIC_API_PATHS`,
+ *     so on a network-exposed bind any unauthenticated caller reaches it and
+ *     absolute host paths would be deployment recon. A gated Hermes answers 200
+ *     with both keys simply missing — that row is *unavailable*, not empty.
+ *   - `install_id` is omitted rather than nulled when it cannot be persisted.
+ *
+ * There is deliberately no host-OS field. `/api/status` carries none: OS,
+ * release, architecture and hostname live on `/api/system/stats`, a separate
+ * endpoint this app does not call. A "macOS 15.3 · arm64" row therefore cannot
+ * be sourced from here and has to be dropped rather than guessed.
+ */
 export interface HermesStatus {
+  /** Absolute path of the install this dashboard serves. Loopback binds only. */
   computer_home?: string
+  /** Absolute path of the `.env` every key written through `/api/env` lands in. Loopback binds only. */
+  env_path?: string
   version?: string
+  /**
+   * `running` · `draining` · `stopped` · `startup_failed`, and `null` when there
+   * is no runtime state file to read. Typed loosely on purpose: the value comes
+   * out of `gateway_state.json`, which older gateways and hand edits have both
+   * written freely. Independent of `gateway_running`, which is a live PID/health
+   * probe — where the two disagree the probe is the truth, so drive a badge from
+   * `gateway_running` and use this only for the detail line.
+   */
+  gateway_state?: string | null
   gateway_running?: boolean
+  /**
+   * Every profile on the host, bare names, `default` included — and `[]` when
+   * enumeration itself failed, which is indistinguishable from a host with no
+   * profiles. Survives the auth gate; the richer `gateways[]` detail does not.
+   */
+  profiles?: string[]
+  disk?: HermesDisk
+  /** One opaque id per physical install. Absent, not null, when unpersistable. */
+  install_id?: string
+  /** `ok` unless the component rollup came back degraded. */
   overall?: string
+}
+
+/**
+ * The `disk` block — `collect_disk_status` in `gateway/disk_status.py`, one
+ * `shutil.disk_usage` call against the install's own filesystem.
+ *
+ * Every number is nullable *and* may be missing outright: the collector answers
+ * `{pressure: 'unknown', total_mb: null, free_mb: null, used_percent: null}` for
+ * a filesystem it cannot read, while the status route's own `except` path answers
+ * `{pressure: 'unknown'}` with no number keys whatsoever. `unknown` means "we
+ * could not read it" and must never be rendered as healthy.
+ *
+ * The numbers are coarse by design — whole MB, floor-divided, and a percent
+ * rounded to one decimal — because this endpoint is unauthenticated. Do not
+ * inflate them back into a byte count and present it as exact.
+ */
+export interface HermesDisk {
+  total_mb?: number | null
+  free_mb?: number | null
+  used_percent?: number | null
+  /**
+   * `ok` · `elevated` · `critical` · `unknown`. Thresholded on absolute headroom
+   * as well as percent (`classify_disk_pressure`), which is why 90% used on a
+   * large volume is still `ok` while under 256MB free is `critical` on any
+   * volume. Advisory: deliberately not folded into `overall`.
+   */
+  pressure?: 'ok' | 'elevated' | 'critical' | 'unknown'
 }
 
 /**
@@ -565,6 +678,28 @@ export interface HermesFileContent {
   data_url: string
 }
 
+/**
+ * `GET /api/memory/file` — the workspace's MEMORY.md, verbatim.
+ *
+ * `exists: false` is a real state rather than an error: the agent writes the
+ * file on its first approved memory, so a workspace that has never stored one
+ * has no file and the endpoint answers `{content: '', exists: false}`. Since
+ * `content` is `''` for an emptied document too, `exists` is the *only* signal
+ * separating "never written" from "cleared" — a surface that conflates them tells
+ * a first-run install its memory was deleted.
+ *
+ * `content` is prose with no per-entry structure a client can rely on: the store
+ * joins entries with `§`, and records no author and no timestamp for any
+ * individual entry, here or in any sidecar. A byline such as "Written by Chief of
+ * Staff · 3 days ago" is therefore not derivable from this payload and must not
+ * be invented — render the entries bare.
+ */
+export interface MemoryFile {
+  content: string
+  path: string
+  exists: boolean
+}
+
 export interface HermesTranscription {
   ok?: boolean
   transcript?: string
@@ -630,3 +765,36 @@ export interface HermesEnvVar {
 }
 
 export type HermesEnvResponse = Record<string, HermesEnvVar>
+
+/**
+ * The config document, typed only where this app reads it.
+ *
+ * `GET /api/config` answers a large, schema-driven record; typing all of it here
+ * would be a second copy of `config_defaults.py` that goes stale silently. So
+ * only the branches a surface actually binds to are named, and the index
+ * signature keeps the rest reachable without pretending to describe it.
+ */
+export interface HermesConfig {
+  auxiliary?: {
+    background_review?: {
+      /**
+       * "Master switch for automatic post-turn memory/skill review forks"
+       * (`computer_cli/config_defaults.py:1327`) — i.e. whether an employee may
+       * write a memory without being asked. Defaults to `true`.
+       */
+      enabled?: boolean
+      [key: string]: unknown
+    }
+    [key: string]: unknown
+  }
+  [key: string]: unknown
+}
+
+/**
+ * A partial config for `PUT /api/config`, which deep-merges server-side.
+ *
+ * Deliberately the same shape as `HermesConfig`: the endpoint takes a subtree,
+ * not a replacement document, so there is no separate "full" vs "patch" wire
+ * format to model.
+ */
+export type HermesConfigPatch = HermesConfig

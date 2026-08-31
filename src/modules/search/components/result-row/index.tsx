@@ -33,7 +33,7 @@ export const ResultRow: FC<ResultRowProps> = ({ row, query, onSelect }) => {
       aria-label={`Open ${displayName}’s thread`}
       className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors duration-200 ease-linear hover:bg-fill-variant-hover focus-visible:bg-fill-variant-hover focus-visible:outline-none"
     >
-      <EmployeeAvatar profile={row.profile} className="size-7" />
+      <EmployeeAvatar profile={row.profile} size={28} />
 
       <span className="min-w-0 flex-1 truncate text-label-md text-secondary">
         {highlight(row.text, query).map((segment, index) => (

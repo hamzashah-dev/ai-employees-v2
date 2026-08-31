@@ -3,12 +3,15 @@ import { IDENTITY_COLORS } from '@/modules/core/constants/identity'
 import { useEmployeeIdentity, useDisplayName } from '@/modules/core/hooks/use-identity'
 import { useIdentityStore } from '@/modules/core/stores/identity-store'
 import { derivedName, identityKey, type MascotShape } from '@/modules/core/utils/identity'
+import type { AvatarPropId } from '@/modules/core/constants/avatar-props'
 
 export interface UseIdentityEditorResult {
   displayName: string
   /** The name Hermes would show on its own, used as the input's placeholder. */
   placeholder: string
   shape: MascotShape
+  /** The resolved job glyph, so the hero draws the same face the roster does. */
+  prop: AvatarPropId | null
   /** The resolved hue, for previewing a shape choice in the employee's own colour. */
   color: `#${string}`
   colorIndex: number
@@ -47,7 +50,7 @@ export interface UseIdentityEditorResult {
  * a character at a time and writing every keystroke to localStorage would be silly.
  */
 export function useIdentityEditor(profile: string): UseIdentityEditorResult {
-  const { color, shape } = useEmployeeIdentity(profile)
+  const { color, shape, prop } = useEmployeeIdentity(profile)
   const displayName = useDisplayName(profile)
   const setOverride = useIdentityStore((state) => state.setOverride)
   const resetOverride = useIdentityStore((state) => state.resetOverride)
@@ -92,9 +95,13 @@ export function useIdentityEditor(profile: string): UseIdentityEditorResult {
     displayName,
     placeholder: derivedName(profile),
     shape,
+    prop,
     color,
-    // The swatch ring follows the *resolved* colour, so an employee with no override
-    // still shows which of the eleven the hash landed on rather than none of them.
+    // The swatch ring follows the *resolved* colour, so an employee with no override still
+    // shows which of the eight the hash landed on rather than none of them. `indexOf` against
+    // the full palette is right even though an un-overridden colour is drawn from the
+    // prop-compatible subset: the subset is a filter of this list, not a reordering, so a hue
+    // found there has the same index here.
     colorIndex: IDENTITY_COLORS.indexOf(color),
     isEditing,
     draftName,

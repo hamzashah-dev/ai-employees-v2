@@ -1,23 +1,26 @@
 import { API_BASE, authHeaders, getSessionToken } from './config'
 import type {
+  HermesConfig,
+  HermesConfigPatch,
   HermesCronJob,
   HermesCronJobsResponse,
   HermesEnvResponse,
   HermesFileContent,
   HermesFileListing,
   HermesManagedFile,
-  HermesProfile,
-  HermesProfileInstallResult,
-  HermesProfilesResponse,
   HermesMcpServer,
   HermesMcpServersResponse,
   HermesModelOptions,
+  HermesProfile,
+  HermesProfileInstallResult,
+  HermesProfilesResponse,
   HermesSearchHit,
   HermesSearchResponse,
   HermesSessionRow,
   HermesSessionsResponse,
   HermesStatus,
   HermesTranscription,
+  MemoryFile,
 } from './types'
 
 export class HermesHttpError extends Error {
@@ -65,7 +68,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 // ------------------------------------------------------------------ status
 
-export function fetchStatus(): Promise<HermesStatus> {
+/**
+ * The install's own vitals — the Settings System card's whole data source.
+ *
+ * Unscoped on purpose. `/api/status` accepts an optional `?profile=`, but all
+ * that repoints is the gateway readout, at that profile's own
+ * `gateway_state.json`; the card describes the machine this dashboard *is*, not
+ * one employee, so the plain call is the correct one and is also the shape the
+ * endpoint documents as its public liveness probe.
+ *
+ * `HermesStatus` deliberately names only the fields the card draws, two of which
+ * are conditionally absent rather than empty — read the type before rendering a
+ * row. Note what is *not* obtainable here: `/api/status` carries no host OS,
+ * release or architecture, so an "operating system" row has to be omitted rather
+ * than sourced from this call.
+ */
+export function fetchSystemStatus(): Promise<HermesStatus> {
   return request<HermesStatus>('/api/status')
 }
 
@@ -560,11 +578,12 @@ export interface ProfileEnvKey {
 
 export type ProfileEnv = Readonly<Record<string, ProfileEnvKey>>
 
-export async function fetchProfileEnv(profile: string): Promise<ProfileEnv> {
-  const rows = await request<HermesEnvResponse>(
-    `/api/env?profile=${encodeURIComponent(profile)}`,
-  )
-
+/**
+ * Row mapping, shared by both readers below: the shape belongs to the endpoint,
+ * not to the scope it was asked about, so the two answers are identical in form
+ * and only differ in which `.env` was read.
+ */
+function toProfileEnv(rows: HermesEnvResponse): ProfileEnv {
   return Object.fromEntries(
     Object.entries(rows).map(([key, row]) => [
       key,
@@ -581,6 +600,43 @@ export async function fetchProfileEnv(profile: string): Promise<ProfileEnv> {
       },
     ]),
   )
+}
+
+export async function fetchProfileEnv(profile: string): Promise<ProfileEnv> {
+  return toProfileEnv(
+    await request<HermesEnvResponse>(`/api/env?profile=${encodeURIComponent(profile)}`),
+  )
+}
+
+/**
+ * The workspace vault — every key held by the dashboard's own install.
+ *
+ * The same endpoint with one difference: no `profile` param. A missing/empty
+ * `profile` makes `_profile_scope` a no-op ("the dashboard's own profile"), so
+ * `load_env()` resolves `get_computer_home()/.env` — the file the account-level
+ * Vault page is about.
+ *
+ * Two things to be honest about before rendering it as a tier above the
+ * employees:
+ *
+ *   1. It is not a fallback layer. `load_env` reads that one file and nothing
+ *      else, so a key here is invisible to an employee that has no copy of its
+ *      own; the scopes are siblings, not parent and child. What comparing this
+ *      against `fetchProfileEnv(profile)` *does* answer is override — a key set
+ *      in both is stored twice, and the employee's own copy is the one its turns
+ *      read.
+ *   2. "The dashboard's own home" is a profile like any other, and on a normal
+ *      install it is `default` (`get_profile_dir('default')` returns the default
+ *      computer home). So this call and `fetchProfileEnv('default')` read the
+ *      very same file, and showing both as separate scopes would double-count
+ *      one `.env`.
+ *
+ * As with the scoped read, the answer is the whole catalogue rather than the
+ * file — a few hundred rows, of which a handful are set — so filter on `isSet`
+ * before drawing a vault.
+ */
+export async function fetchGlobalEnv(): Promise<ProfileEnv> {
+  return toProfileEnv(await request<HermesEnvResponse>('/api/env'))
 }
 
 export function setProfileEnvVar(
@@ -626,4 +682,96 @@ export async function revealProfileEnvVar(
     body: JSON.stringify({ key, profile }),
   })
   return data.value
+}
+
+// ------------------------------------------------------------------ memory
+
+/**
+ * The workspace's MEMORY.md, verbatim, for the Settings Memory card.
+ *
+ * A *file* endpoint, and not the memory-provider surface: `/api/memory`,
+ * `/api/memory/provider` and `/api/memory/providers/*` all concern the pluggable
+ * long-term-memory backends, and `GET /api/memory` reports only the built-in
+ * files' byte *sizes* — which is why reading the text needed its own route.
+ *
+ * Account-level, deliberately unparameterised: the file is
+ * `<computer_home>/memories/MEMORY.md`, the memories every employee shares.
+ * There is no per-profile variant of this endpoint the way there is for a soul
+ * (`/api/profiles/{name}/soul`).
+ *
+ * A missing file is `{content: '', exists: false}` and never a 404 — the agent
+ * creates MEMORY.md on its first approved memory write, so a fresh workspace
+ * genuinely has none and the card has to be able to author the first entry.
+ * `exists` is the only thing separating that from a document the user emptied,
+ * because `content` is `''` in both cases. A 500 does mean a real read failure.
+ */
+export function fetchMemoryFile(): Promise<MemoryFile> {
+  return request<MemoryFile>('/api/memory/file')
+}
+
+/**
+ * Overwrite MEMORY.md with `content`.
+ *
+ * A whole-document PUT, not a patch: the body is `{content}`, there is no
+ * per-entry route, and the server does not take `MEMORY.md.lock` — the lock
+ * `MemoryStore` holds for its own read-modify-write. So an editor must send back
+ * the full text it read, and a save racing an agent's memory write is
+ * last-write-wins (atomic, via `atomic_write_text`, so never a torn file). That
+ * is the honest reason to re-read before saving and to offer no "edit one line".
+ *
+ * The store's own format matters here even though this endpoint does not enforce
+ * it: entries are joined by `§`, and content that does not round-trip through
+ * that format is treated as external drift — the store snapshots the file to
+ * `MEMORY.md.bak.<ts>` and then *refuses the agent's next memory mutation*
+ * rather than clobbering hand-edited text. A free-text editor is therefore a
+ * real thing to warn about, not a neutral one.
+ *
+ * Answers `{ok: true, bytes}`; nothing a caller needs. Re-read with
+ * `fetchMemoryFile` if `path` or `exists` matters after a first save.
+ */
+export function saveMemoryFile(content: string): Promise<unknown> {
+  return request('/api/memory/file', {
+    method: 'PUT',
+    body: JSON.stringify({ content }),
+  })
+}
+
+/**
+ * The whole config document, as the dashboard's schema-driven form reads it.
+ *
+ * `GET /api/config` (`computer_cli/web_server.py:7236`) answers the *defaulted*
+ * record — every key the schema knows, filled in from `config_defaults.py` —
+ * not the sparse YAML on disk. So a key can be present here and absent from the
+ * file, and reading a value never has to cope with `undefined` for a documented
+ * default.
+ *
+ * Unscoped on purpose: no `profile` param means `_profile_scope` is a no-op and
+ * the read resolves the dashboard's own home, which is the install-wide config
+ * the Settings surface is about.
+ */
+export function fetchConfig(): Promise<HermesConfig> {
+  return request<HermesConfig>('/api/config')
+}
+
+/**
+ * Write a *partial* config.
+ *
+ * `PUT /api/config` **deep-merges** the incoming document over what is on disk
+ * (`_deep_merge(existing, incoming)`, `web_server.py:8089`) precisely so a
+ * schema-driven form cannot drop the root keys it does not render —
+ * `custom_providers`, `agent.personalities`, `terminal.lifetime_seconds` and the
+ * rest. That is what makes it safe to send one nested leaf:
+ *
+ *     updateConfig({ auxiliary: { background_review: { enabled: false } } })
+ *
+ * Send the smallest subtree that expresses the change. Sending a whole branch
+ * read back from `fetchConfig` would also work but would rewrite every default
+ * in it as an explicit value on disk, which is how a config stops tracking
+ * upstream default changes.
+ */
+export function updateConfig(config: HermesConfigPatch): Promise<unknown> {
+  return request('/api/config', {
+    method: 'PUT',
+    body: JSON.stringify({ config }),
+  })
 }

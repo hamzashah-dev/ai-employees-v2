@@ -106,7 +106,7 @@ export const MemberPicker: FC<MemberPickerProps> = ({
                   { 'bg-fill-variant-active': isSelected },
                 )}
               >
-                <EmployeeAvatar profile={option.name} className="size-8" />
+                <EmployeeAvatar profile={option.name} size={32} />
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate text-label-md text-primary">{option.name}</span>
                   {option.title && (
