@@ -258,8 +258,9 @@ Run `npm run quality` before finishing. It is typecheck + lint + test, and it mu
 
 # Design fidelity
 
-The design source is a canvas of five artboards. Its measurements are the spec for these
-screens, but note two things that generalise:
+There are two design sources, both canvases: the original five artboards, and
+`~/Downloads/Bot Group Chats.html` (screens 1a–1g) for group chats. Their measurements are
+the spec for these screens, but note two things that generalise:
 
 1. **Where the canvas and imagine-computer-web disagree, the split is:** the monorepo owns
    tokens, components, mechanisms and accessibility; the canvas owns per-surface pixels
@@ -271,6 +272,11 @@ screens, but note two things that generalise:
    from a screenshot.
 
 Reuse before building: `@repo/ui` for `Button` / `Badge` / `Skeleton` / `Tooltip` / `Sheet`,
-`modules/core/components` for `EmployeeAvatar` / `AgentBlob` / `Spinner` / `AccountAvatar`.
-Hand-rolling a div with the right classes instead of using the house component is how the two
-codebases drift apart.
+`modules/core/components` for `EmployeeAvatar` / `AgentBlob` / `Spinner` / `AccountAvatar` /
+`GroupClusterAvatar`. Hand-rolling a div with the right classes instead of using the house
+component is how the two codebases drift apart.
+
+A worked example of rule 2, from the group canvas: its annotation says a cluster is "three
+members … each drawn at 20px", but the markup draws the third at **18px** with a 1px lift, in
+all seven clusters. The drawing won, because seven consistent instances are a decision and one
+sentence is a summary. Where the two disagree, measure both before picking.

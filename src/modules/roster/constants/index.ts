@@ -4,6 +4,7 @@ import { KnowledgeIcon } from '@repo/icons/knowledge-icon'
 import { MeetingCalendarIcon } from '@repo/icons/meeting-calendar-icon'
 import { PeopleIcon } from '@repo/icons/people-icon'
 import { SearchIcon } from '@repo/icons/search'
+import { TeamIcon } from '@repo/icons/team'
 import { StartNewIcon } from '@repo/icons/start-new-icon'
 import { TimeClockIcon } from '@repo/icons/time-clock-icon'
 import { ToolBoxIcon } from '@repo/icons/tool-box'
@@ -43,6 +44,7 @@ export const ROUTES = {
   SEARCH: '/search',
   HIRE: '/employees/hire',
   ROUTINES: '/routines',
+  GROUPS: '/groups',
 } as const
 
 /**
@@ -56,6 +58,7 @@ export const EMPLOYEES_ROUTE_ROOTS: string[] = [
   ROUTES.EMPLOYEES,
   ROUTES.SEARCH,
   ROUTES.ROUTINES,
+  ROUTES.GROUPS,
 ]
 
 /**
@@ -112,6 +115,9 @@ export const EMPLOYEES_NAV_ITEMS: RosterNavItem[] = [
     badge: 'Beta',
     live: true,
   },
+  // Groups sits beside Employees because a room is made of them: you hire on
+  // one row and put the hires in a room on the next.
+  { to: ROUTES.GROUPS, label: 'Groups', icon: TeamIcon, end: true, badge: 'Beta' },
   // §4.2: "a **button**, not a link". The modal opens over whatever is on
   // screen, so navigating away from it would be the wrong thing to do.
   { label: 'Search', icon: SearchIcon, onSelect: () => useSearchStore.getState().open() },

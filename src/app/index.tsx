@@ -12,6 +12,7 @@ import {
   Navigate,
   Route,
   Routes,
+  useNavigate,
   useParams,
 } from 'react-router-dom'
 
@@ -20,8 +21,10 @@ import { AppSidebar } from './components/app-sidebar'
 import { ConnectionBanner } from './components/connection-banner'
 import { TopBar } from './components/top-bar'
 import { useIsLaptop } from '@/modules/core/hooks/media-query'
+import { useGroupPersistence } from '@/modules/core/hooks/use-group-persistence'
 import { useHermesConnection } from '@/modules/core/hooks/use-hermes'
 import { useChatStore } from '@/modules/core/stores/chat-store'
+import { useGroupCreateStore } from '@/modules/core/stores/group-create-store'
 import { isAgentBrowsing } from '@/modules/panel/hooks/use-browser-view'
 import { ROUTES } from '@/modules/roster/constants'
 
@@ -45,6 +48,17 @@ const MarketplaceView = lazy(() =>
 const AgentDetailView = lazy(() =>
   import('@/modules/marketplace/usecases/agent-detail').then((m) => ({
     default: m.AgentDetailView,
+  })),
+)
+const GroupsView = lazy(() =>
+  import('@/modules/groups').then((m) => ({ default: m.GroupsView })),
+)
+const GroupRoomView = lazy(() =>
+  import('@/modules/groups/usecases/room').then((m) => ({ default: m.GroupRoomView })),
+)
+const NewGroupFlow = lazy(() =>
+  import('@/modules/groups/components/new-group-flow').then((m) => ({
+    default: m.NewGroupFlow,
   })),
 )
 
@@ -152,6 +166,12 @@ const Page: FC<{ title?: string; onOpenSidebar: () => void; children: ReactNode 
 
 const Shell: FC = () => {
   useHermesConnection()
+  /*
+   * Rooms hydrate here, not inside the Groups chunk. The Team list draws group rows
+   * on the first paint of any route, so waiting for `/groups` to be visited would
+   * leave the sidebar missing rooms until the user happened to go there.
+   */
+  useGroupPersistence()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const openSidebar = (): void => setSidebarOpen(true)
 
@@ -213,6 +233,22 @@ const Shell: FC = () => {
                 element={<EmployeeRoute onOpenSidebar={openSidebar} />}
               />
 
+              <Route
+                path={ROUTES.GROUPS}
+                element={
+                  <Page title="Groups" onOpenSidebar={openSidebar}>
+                    <GroupsView />
+                  </Page>
+                }
+              />
+
+              {/*
+                A room draws its own 48px header — the cluster, the name and the
+                members panel — exactly as an employee thread does, so it gets no
+                {@link TopBar} either.
+              */}
+              <Route path={`${ROUTES.GROUPS}/:roomId`} element={<GroupRoomView />} />
+
               {/*
                 The rest of the canvas's nav. Some are this app's own, unbuilt surfaces;
                 the others belong to the surrounding product and arrive with the port.
@@ -237,7 +273,41 @@ const Shell: FC = () => {
           </Suspense>
         </main>
       </div>
+
+      {/*
+        Mounted once, at the shell, because §1a opens it from the Team heading — which
+        is on screen on every route — and a dialog living inside the Groups chunk could
+        only ever open over `/groups`.
+      */}
+      <Suspense fallback={null}>
+        <NewGroupDialog />
+      </Suspense>
     </div>
+  )
+}
+
+/**
+ * The "New group" flow, wherever the user asked for it.
+ *
+ * Lazy like the rest of the module, and rendered only while open so the chunk is not
+ * pulled for a session that never makes a room.
+ */
+const NewGroupDialog: FC = () => {
+  const isOpen = useGroupCreateStore((state) => state.isOpen)
+  const close = useGroupCreateStore((state) => state.close)
+  const navigate = useNavigate()
+
+  if (!isOpen) return null
+
+  return (
+    <NewGroupFlow
+      onClose={close}
+      onCreated={(id) => {
+        close()
+        // §1d: the room opens empty rather than dropping the user back where they were.
+        navigate(`${ROUTES.GROUPS}/${encodeURIComponent(id)}`)
+      }}
+    />
   )
 }
 
