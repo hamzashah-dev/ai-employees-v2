@@ -41,11 +41,17 @@ interface BotMarkProps {
   /** The job glyph. Omit for an employee whose job we do not know — never guess one. */
   prop?: AvatarPropId | null
   /**
-   * Rendered size in CSS pixels, and the input to the detail tiers.
+   * Rendered size in CSS pixels. Sizes the element *and* picks the detail tier.
    *
-   * Passing this matters even when `className` also sizes the element: the tiers are decided
-   * here, not in CSS, so a mark told it is 96px while drawn at 20px still renders a ground
-   * shadow and a prop that are illegible at that scale.
+   * It is applied as `width`/`height` on the `<svg>`, so a caller that passes nothing else
+   * gets a correctly-sized mark. A `size-*` class in `className` still wins — CSS beats a
+   * presentation attribute — which is what lets `GroupClusterAvatar` lay its faces out by
+   * class while still declaring a truthful tier here.
+   *
+   * The 3D component this replaced set the same dimensions through an inline `style`. Dropping
+   * that when the renderer changed left `size` driving the tiers but nothing driving the box,
+   * so the one caller that sized purely through `size` — the identity modal's 72px hero —
+   * collapsed to zero and took its edit button to the corner of the panel with it.
    */
   size?: number
   /** True while a turn is in flight, which swaps the resting face for the working one. */
@@ -77,6 +83,8 @@ export const BotMark: FC<BotMarkProps> = ({
   return (
     <svg
       viewBox={`0 0 ${VIEW_BOX} ${VIEW_BOX}`}
+      width={size}
+      height={size}
       className={cn('block shrink-0', className)}
       style={style}
       role={label === null ? 'presentation' : 'img'}

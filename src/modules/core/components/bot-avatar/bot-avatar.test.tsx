@@ -210,6 +210,34 @@ describe('BotMark', () => {
   })
 })
 
+describe('sizing', () => {
+  /*
+   * The regression these guard shipped once and was invisible to every other test in this
+   * file: `size` drove the detail tiers but nothing drove the box, so a caller that sized
+   * purely through `size` — the identity modal's hero — rendered a zero-width avatar. Every
+   * tier assertion still passed, because the parts were all present in a box of no size.
+   */
+  it('sizes itself from `size` alone, with no class to help it', () => {
+    render(<BotMark size={72} label="hero" />)
+    const svg = markOf('hero')
+    expect(svg).toHaveAttribute('width', '72')
+    expect(svg).toHaveAttribute('height', '72')
+  })
+
+  it('sizes itself at the default too, so a bare mark is never zero-width', () => {
+    render(<BotMark label="bare" />)
+    expect(markOf('bare').getAttribute('width')).not.toBe('0')
+    expect(Number(markOf('bare').getAttribute('width'))).toBeGreaterThan(0)
+  })
+
+  it('still lets a class win, which is how the group cluster lays its faces out', () => {
+    render(<BotMark size={20} className="size-4" label="clustered" />)
+    const svg = markOf('clustered')
+    expect(svg).toHaveAttribute('width', '20')
+    expect(svg.getAttribute('class')).toContain('size-4')
+  })
+})
+
 describe('size tiers', () => {
   it('draws everything at hero size', () => {
     render(<BotMark prop="search" size={96} label="hero" />)

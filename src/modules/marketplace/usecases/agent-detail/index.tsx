@@ -114,7 +114,7 @@ const AgentDetailPanel: FC<{ agent: CatalogAgent }> = ({ agent }) => {
   return (
     <Panel onClose={close} footer={footer}>
       <div className="flex items-start gap-4 px-6 pt-6">
-        <AgentBlob profile={agent.id} className="size-16 shrink-0" />
+        <AgentBlob profile={agent.id} size={64} className="size-16 shrink-0" />
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-2">
             <DialogTitle className="text-heading-sm font-medium text-primary">

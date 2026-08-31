@@ -584,6 +584,14 @@ describe('EmployeeModal', () => {
        */
       const body = avatar.querySelector('[data-part="body"]')
       expect(body).toHaveAttribute('fill', IDENTITY_COLORS[IDENTITY_COLOR_NAMES.indexOf('Grape')])
+
+      /*
+       * And it occupies a box. The hero shipped once at zero width — `size` picked the detail
+       * tier but nothing applied it to the element — which every other assertion here happily
+       * passed straight through, because the parts were all present in a box of no size. The
+       * only visible symptom was the edit button drifting to the corner of the panel.
+       */
+      expect(Number(avatar.getAttribute('width'))).toBeGreaterThan(0)
     }
 
     expect(screen.getByRole('button', { name: /Add a colour/ })).toBeDisabled()
