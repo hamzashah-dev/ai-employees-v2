@@ -1,5 +1,8 @@
 import type { ComponentType } from 'react'
 
+/** Promoted to core once the search modal drew the same rows. */
+export type { RosterEntry } from '@/modules/core/types/roster'
+
 export interface RosterSidebarProps {
   /**
    * Whether the collapse control shrinks the sidebar to its icon rail. False inside the
@@ -10,23 +13,6 @@ export interface RosterSidebarProps {
   onDismiss?: () => void
 }
 
-/**
- * One employee as the sidebar needs it: identity from `/api/profiles`, the
- * last-outcome line and stamp from the batched sidebar-sessions call.
- */
-export interface RosterEntry {
-  /** Hermes profile name — the row's identity and its route segment. */
-  profile: string
-  displayName: string
-  /** Last outcome line. Never empty, so every row is the same height. */
-  subtitle: string
-  /** Already formatted for display; empty when the employee has no sessions. */
-  timeLabel: string
-  /** Machine-readable form of `timeLabel`, for `<time dateTime>`. */
-  timeIso?: string
-  /** Sort key. 0 when the employee has never run. */
-  activityMs: number
-}
 
 interface RosterNavItemBase {
   label: string
@@ -34,11 +20,26 @@ interface RosterNavItemBase {
   icon: ComponentType<{ className?: string }>
   badge?: string
   /**
+   * The chord that also triggers this row, in ARIA's own notation (`Meta+K`).
+   *
+   * Separate from the `badge` that prints it, and that split is the point: the printed
+   * form is decoration, so it is hidden from assistive tech and the row keeps `Search` as
+   * its accessible name, while `aria-keyshortcuts` is the attribute screen readers
+   * actually announce shortcuts from.
+   */
+  keyShortcut?: string
+  /**
    * Opts the row into §4.1's live employee chip, which replaces `badge` while
    * anything is running or waiting. Only rows that ask for it subscribe to the
    * chat store, so the other nine pay nothing for it.
    */
   live?: boolean
+  /**
+   * Opts the row into the connector count, which replaces `badge` once the MCP
+   * listing answers. Same reasoning as `live`: only the row that asks for it holds
+   * the query, so no other row pays for a request it does not draw.
+   */
+  connectors?: boolean
 }
 
 /**

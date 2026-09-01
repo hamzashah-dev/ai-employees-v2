@@ -110,8 +110,15 @@ describe('EmployeeSearchModal', () => {
 
     expect(await screen.findByRole('heading', { name: 'Employees' })).toBeTruthy()
     expect(screen.getByRole('button', { name: /Expense Manager/ })).toBeTruthy()
-    // A group with nothing in it is absent, not an empty heading.
-    expect(screen.queryByRole('heading', { name: 'Messages' })).toBeNull()
+    /*
+     * `Messages` is a heading over placeholders while the fan-out is out — the employees
+     * beside it have already answered, and dropping the heading until the hits land makes
+     * the list jump under the cursor. Once it comes back empty the group goes entirely: a
+     * heading with nothing under it is a broken section, not an empty one.
+     */
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Messages' })).toBeNull()
+    })
   })
 
   it('groups backend hits under Messages, markers stripped', async () => {
@@ -131,11 +138,37 @@ describe('EmployeeSearchModal', () => {
       await userEvent.type(input, 'vercel')
     })
 
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Messages' })).toBeTruthy()
-    })
-    expect(screen.getByText(/parked the/)).toBeTruthy()
+    // The heading is up immediately, over placeholders; the row is what has to be waited
+    // for, so waiting on the heading would race the hit it is promising.
+    expect(await screen.findByText(/parked the/)).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Messages' })).toBeTruthy()
     expect(screen.queryByText(/>>>/)).toBeNull()
+  })
+
+  it('offers the roster before anything is typed, and says what the chord is', async () => {
+    await mount()
+    await act(async () => useSearchStore.getState().open())
+
+    // Not "recent searches" — nothing records those. It is the roster, newest first.
+    expect(await screen.findByRole('heading', { name: 'Recent' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Expense Manager/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Inbox Triage/ })).toBeTruthy()
+    expect(screen.getByText('Type a name, or a line from any thread')).toBeTruthy()
+  })
+
+  it('counts what it searched rather than implying the whole app was looked at', async () => {
+    await mount()
+    await act(async () => useSearchStore.getState().open())
+
+    const input = await screen.findByLabelText('Search employees and messages')
+    await act(async () => {
+      await userEvent.type(input, 'q4 offsite')
+    })
+
+    expect(await screen.findByText(/No results for “q4 offsite”/)).toBeTruthy()
+    // Two employees on the roster, both genuinely asked — which is the difference
+    // between "we looked and there is nothing" and "we never asked".
+    expect(screen.getByText('Searched 2 employees · 0 matches')).toBeTruthy()
   })
 
   it('shows the no-results state rather than two empty headings', async () => {

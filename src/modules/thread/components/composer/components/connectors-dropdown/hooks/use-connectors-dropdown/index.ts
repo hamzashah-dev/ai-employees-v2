@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import {
-  useConnectors,
-  type UseConnectorsResult,
-} from '@/modules/thread/hooks/use-connectors'
+  useMcpServers,
+  type UseMcpServersResult,
+} from '@/modules/core/hooks/use-mcp-servers'
 
-export interface UseConnectorsDropdownResult extends UseConnectorsResult {
+export interface UseConnectorsDropdownResult extends UseMcpServersResult {
   isOpen: boolean
   setIsOpen: (open: boolean) => void
 }
@@ -12,11 +12,12 @@ export interface UseConnectorsDropdownResult extends UseConnectorsResult {
 /**
  * The dropdown's own open state over the shared connector list.
  *
- * The list itself moved to `modules/thread/hooks/use-connectors` when the employee info
- * modal started reading it too; only the trigger's open/closed flag is local to this
- * surface, and it stays here so the dropdown keeps one hook rather than two.
+ * The list itself is `modules/core/hooks/use-mcp-servers`, shared with the integrations
+ * dialog behind this control, Settings › Connectors and the sidebar's count; only the
+ * trigger's open/closed flag is local to this surface, and it stays here so the dropdown
+ * keeps one hook rather than two.
  */
 export function useConnectorsDropdown(profile: string): UseConnectorsDropdownResult {
   const [isOpen, setIsOpen] = useState(false)
-  return { isOpen, setIsOpen, ...useConnectors(profile) }
+  return { isOpen, setIsOpen, ...useMcpServers(profile) }
 }

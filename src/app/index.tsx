@@ -140,6 +140,7 @@ const EmployeeRoute: FC<PageProps> = ({ onOpenSidebar }) => {
         profile={profile}
         panelOpen={panelOpen}
         onTogglePanel={() => setPanelOpen((open) => !open)}
+        onOpenPanel={() => setPanelOpen(true)}
         onOpenSidebar={onOpenSidebar}
       />
       {panelOpen && (

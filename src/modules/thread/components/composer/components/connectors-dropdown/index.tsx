@@ -1,4 +1,4 @@
-import type { FC } from 'react'
+import { useState, type FC } from 'react'
 import { CheckIcon } from '@repo/icons/check'
 import { ConnectorsIcon } from '@repo/icons/connectors-icon'
 import { buttonVariants } from '@repo/ui/button'
@@ -8,6 +8,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@repo/ui/sheet'
 import { WithTooltip } from '@repo/ui/tooltip'
 import { Spinner } from '@/modules/core/components/spinner'
 import { useIsTablet } from '@/modules/core/hooks/media-query'
+import { ConnectorsDialog } from '@/modules/thread/components/connectors-dialog'
 import { useConnectorsDropdown } from './hooks/use-connectors-dropdown'
 
 interface ConnectorsDropdownProps {
@@ -29,6 +30,7 @@ interface ConnectorsDropdownProps {
  */
 export const ConnectorsDropdown: FC<ConnectorsDropdownProps> = ({ profile }) => {
   const isTablet = useIsTablet()
+  const [detailsOpen, setDetailsOpen] = useState(false)
   const { isOpen, setIsOpen, servers, enabledCount, isLoading, error, toggle, pendingName } =
     useConnectorsDropdown(profile)
 
@@ -99,39 +101,68 @@ export const ConnectorsDropdown: FC<ConnectorsDropdownProps> = ({ profile }) => 
       ))}
 
       {servers.length > 0 && (
-        <p className="px-2.5 pt-2 text-label-xs text-tertiary">
-          Hermes reads this when a turn starts, so a change applies to the next message.
-        </p>
+        <>
+          <p className="px-2.5 pt-2 text-label-xs text-tertiary">
+            Hermes reads this when a turn starts, so a change applies to the next message.
+          </p>
+          {/*
+            The way to the full list. The menu is a toggle strip — a name and a tick — and
+            the transport, address and brand mark do not fit in one; opening them out is a
+            dialog rather than a taller menu, which is also what makes them reachable on the
+            phone sheet.
+          */}
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            onClick={() => {
+              setIsOpen(false)
+              setDetailsOpen(true)
+            }}
+            className="mt-1 w-full cursor-pointer rounded-lg px-2.5 py-2 text-left text-label-md text-secondary transition-colors duration-200 ease-linear hover:bg-fill-variant-hover hover:text-primary focus-visible:bg-fill-variant-hover focus-visible:outline-none"
+          >
+            See all integrations
+          </button>
+        </>
       )}
     </>
   )
 
+  const dialog = detailsOpen ? (
+    <ConnectorsDialog profile={profile} open={detailsOpen} onOpenChange={setDetailsOpen} />
+  ) : null
+
   if (!isTablet) {
     return (
-      <Sheet open={isOpen} onOpenChange={setIsOpen}>
-        <SheetTrigger className={triggerClassName} aria-label="Integrations">
-          {triggerInner}
-        </SheetTrigger>
-        <SheetContent side="bottom" className="gap-0 px-2 pb-2">
-          {content}
-        </SheetContent>
-      </Sheet>
+      <>
+        {dialog}
+        <Sheet open={isOpen} onOpenChange={setIsOpen}>
+          <SheetTrigger className={triggerClassName} aria-label="Integrations">
+            {triggerInner}
+          </SheetTrigger>
+          <SheetContent side="bottom" className="gap-0 px-2 pb-2">
+            {content}
+          </SheetContent>
+        </Sheet>
+      </>
     )
   }
 
   return (
-    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
-      <DropdownMenuTrigger className={triggerClassName} aria-label="Integrations">
-        <WithTooltip content="Integrations">{triggerInner}</WithTooltip>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        side="bottom"
-        className="flex w-80 flex-col gap-1 rounded-2xl border border-primary bg-surface p-2 shadow-sm"
-        onCloseAutoFocus={(event) => event.preventDefault()}
-      >
-        {content}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      {dialog}
+      <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+        <DropdownMenuTrigger className={triggerClassName} aria-label="Integrations">
+          <WithTooltip content="Integrations">{triggerInner}</WithTooltip>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          side="bottom"
+          className="flex w-80 flex-col gap-1 rounded-2xl border border-primary bg-surface p-2 shadow-sm"
+          onCloseAutoFocus={(event) => event.preventDefault()}
+        >
+          {content}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
   )
 }

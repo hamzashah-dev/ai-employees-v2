@@ -1,17 +1,18 @@
-import { useState, type FC } from 'react'
+import type { FC } from 'react'
 import { MenuIcon } from '@repo/icons/menu'
 import { MonitorIcon } from '@repo/icons/monitor'
 import { Button } from '@repo/ui/button'
 import { cn } from '@repo/ui/cn'
 import { EmployeeAvatar } from '@/modules/core/components/employee-avatar'
 import { AccountAvatar } from '@/modules/core/components/account-avatar'
-import { EmployeeModal } from '../employee-modal'
 
 interface ThreadHeaderProps {
   profile: string
   displayName: string
   panelOpen: boolean
   onTogglePanel: () => void
+  /** Opens the panel if it is closed, and leaves it open if it is not. */
+  onOpenPanel: () => void
   /** Opens the sidebar drawer. Only shown below `desktop-sm`, where the panel is hidden. */
   onOpenSidebar?: () => void
 }
@@ -22,19 +23,21 @@ interface ThreadHeaderProps {
  * the bar from the transcript with space, not a border.
  *
  * The identity is a button rather than a label: it is the only place in the app where an
- * employee's face and name sit together at rest, which makes it the natural handle for the
- * card that edits them.
+ * employee's face and name sit together at rest, which makes it the natural handle for
+ * everything about them.
+ *
+ * It used to open a modal over the conversation that held the identity, the workspace and
+ * the connectors. That modal is gone — all of it lives in the right panel now — so the
+ * button opens the panel instead of a second surface saying the same things.
  */
 export const ThreadHeader: FC<ThreadHeaderProps> = ({
   profile,
   displayName,
   panelOpen,
   onTogglePanel,
+  onOpenPanel,
   onOpenSidebar,
-}) => {
-  const [infoOpen, setInfoOpen] = useState(false)
-
-  return (
+}) => (
     <header className="flex h-12 shrink-0 items-center justify-between px-4">
       <div className="flex min-w-0 items-center gap-2">
         {onOpenSidebar ? (
@@ -54,8 +57,8 @@ export const ThreadHeader: FC<ThreadHeaderProps> = ({
         <button
           type="button"
           aria-label={`About ${displayName}`}
-          aria-haspopup="dialog"
-          onClick={() => setInfoOpen(true)}
+          aria-expanded={panelOpen}
+          onClick={onOpenPanel}
           className="flex min-w-0 items-center gap-2 rounded-xl px-1.5 py-1 outline-none transition-colors duration-200 ease-linear hover:bg-fill-variant-hover focus-visible:bg-fill-variant-hover"
         >
           <EmployeeAvatar profile={profile} size={24} />
@@ -83,12 +86,5 @@ export const ThreadHeader: FC<ThreadHeaderProps> = ({
 
         <AccountAvatar />
       </div>
-
-      {/* Mounted only while open: the card fetches connectors and a directory listing, and
-          neither should cost anything on a thread nobody has asked about. */}
-      {infoOpen && (
-        <EmployeeModal profile={profile} open={infoOpen} onOpenChange={setInfoOpen} />
-      )}
     </header>
-  )
-}
+)

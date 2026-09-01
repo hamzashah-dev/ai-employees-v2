@@ -1,12 +1,8 @@
-import type { ComponentType, FC } from 'react'
-import { ChevronLeftIcon } from '@repo/icons/chevron-left'
+import type { FC } from 'react'
 import { CrossIcon } from '@repo/icons/cross'
 import { ExitFullViewIcon } from '@repo/icons/exit-full-view'
 import { FullViewIcon } from '@repo/icons/full-view'
-import { MeetingShareIcon } from '@repo/icons/meeting-share-icon'
-import { SettingsIcon } from '@repo/icons/settings'
 import { Button } from '@repo/ui/button'
-import { WithTooltip } from '@repo/ui/tooltip'
 
 /**
  * The canvas draws these at 32px with a 16px glyph, wider than the shipped
@@ -16,13 +12,15 @@ import { WithTooltip } from '@repo/ui/tooltip'
 const HEADER_BUTTON = 'text-secondary [&>svg]:size-4'
 
 interface PanelHeaderProps {
-  /** Pops the view stack. At the root that leaves the drawer; see `usePanelView`. */
-  onBack: () => void
-  /** Names the destination, which changes with the depth. */
-  backLabel: string
+  /**
+   * What the panel is showing, in two words. "Employee" at rest; the canvas swaps it for
+   * "<name> is working" while a turn is in flight, which is the only thing up here that ever
+   * changes.
+   */
+  label: string
   onClose: () => void
   /**
-   * Omitted where maximizing is meaningless — below `laptop` the drawer is
+   * Omitted where maximizing is meaningless — below `laptop` the panel is
    * already a full-height sheet, so there is nothing to maximize into.
    */
   onToggleMaximize?: () => void
@@ -30,7 +28,13 @@ interface PanelHeaderProps {
 }
 
 /**
- * Back on the left; share, settings, maximize and close on the right.
+ * A label on the left, maximize and close on the right.
+ *
+ * Down from five controls to two. The back chevron went with the view stack it popped — the
+ * routine editor is a dialog now, so there is nothing behind the panel to go back to except
+ * closing it, which the cross already does. Share and Employee-settings went because they
+ * were disabled buttons with tooltips explaining that they did nothing: two thirds of the
+ * header was controls the backend cannot serve.
  *
  * Maximize mirrors the shipped artifact drawer's own state rather than being a
  * new full-screen mode: there, `isMaximized` swaps the drawer's width for 100%
@@ -38,35 +42,15 @@ interface PanelHeaderProps {
  * mechanism here.
  */
 export const PanelHeader: FC<PanelHeaderProps> = ({
-  onBack,
-  backLabel,
+  label,
   onClose,
   onToggleMaximize,
   isMaximized = false,
 }) => (
-  <header className="flex h-12 shrink-0 items-center justify-between px-3">
-    <Button
-      variant="icon-ghost"
-      size="icon-sm"
-      shape="pill"
-      className={HEADER_BUTTON}
-      aria-label={backLabel}
-      onClick={onBack}
-    >
-      <ChevronLeftIcon />
-    </Button>
+  <header className="flex h-12 shrink-0 items-center justify-between gap-2 px-3">
+    <span className="min-w-0 truncate pl-1 text-label-sm text-secondary">{label}</span>
 
-    <div className="flex items-center gap-1">
-      <UnavailableAction
-        icon={MeetingShareIcon}
-        label="Share"
-        tooltip="Sharing an employee isn’t available yet"
-      />
-      <UnavailableAction
-        icon={SettingsIcon}
-        label="Employee settings"
-        tooltip="Employee settings aren’t available yet"
-      />
+    <div className="flex shrink-0 items-center gap-1">
       {onToggleMaximize && (
         <Button
           variant="icon-ghost"
@@ -91,44 +75,4 @@ export const PanelHeader: FC<PanelHeaderProps> = ({
       </Button>
     </div>
   </header>
-)
-
-interface UnavailableActionProps {
-  icon: ComponentType<{ className?: string }>
-  label: string
-  tooltip: string
-}
-
-/**
- * A control the backend cannot serve yet.
- *
- * Rendered disabled and explained rather than left live and inert. The reason
- * is repeated in the accessible name because a disabled button never takes
- * focus, so the tooltip alone would never reach a keyboard or screen-reader
- * user. `WithTooltip` wraps its child in the trigger element, which is what
- * makes the hover work at all: a disabled button dispatches no pointer events.
- */
-const UnavailableAction: FC<UnavailableActionProps> = ({
-  icon: Icon,
-  label,
-  tooltip,
-}) => (
-  <WithTooltip
-    content={tooltip}
-    size="sm"
-    showArrow={false}
-    className="inline-flex"
-    tooltipContentProps={{ side: 'bottom', sideOffset: 6, className: 'max-w-56' }}
-  >
-    <Button
-      variant="icon-ghost"
-      size="icon-sm"
-      shape="pill"
-      className={HEADER_BUTTON}
-      disabled
-      aria-label={`${label} — not available yet`}
-    >
-      <Icon />
-    </Button>
-  </WithTooltip>
 )

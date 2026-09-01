@@ -4,17 +4,14 @@ import { KnowledgeIcon } from '@repo/icons/knowledge-icon'
 import { MeetingCalendarIcon } from '@repo/icons/meeting-calendar-icon'
 import { PeopleIcon } from '@repo/icons/people-icon'
 import { SearchIcon } from '@repo/icons/search'
-import { TeamIcon } from '@repo/icons/team'
 import { StartNewIcon } from '@repo/icons/start-new-icon'
 import { TimeClockIcon } from '@repo/icons/time-clock-icon'
 import { ToolBoxIcon } from '@repo/icons/tool-box'
 import { ToolsIcon } from '@repo/icons/tools-icon'
 import { WebsiteContentIcon } from '@repo/icons/website-content-icon'
+import { SEARCH_SHORTCUT_LABEL } from '@/modules/core/constants/shortcuts'
 import { useSearchStore } from '@/modules/core/stores/search-store'
 import type { RosterNavItem } from '../types'
-
-/** How often the last-outcome lines refresh. */
-export const SESSIONS_REFETCH_MS = 15_000
 
 export const SKELETON_ROW_COUNT = 4
 
@@ -47,6 +44,16 @@ export const ROUTES = {
   GROUPS: '/groups',
   SETTINGS: '/settings',
 } as const
+
+/**
+ * Settings' Connectors tab, spelled out here rather than imported.
+ *
+ * `settingsTabPath('connectors')` would say the same thing, but it lives in `modules/
+ * settings` and a feature module may not reach into another's internals. The tab id is
+ * part of the route's public shape — it is in the URL — so restating it is honest;
+ * `modules/settings` normalises anything it does not recognise back to Account.
+ */
+const CONNECTORS_PATH = `${ROUTES.SETTINGS}/connectors`
 
 /**
  * Routes that put the sidebar in Employees mode. The Sites mechanism keys off a
@@ -125,13 +132,34 @@ export const EMPLOYEES_NAV_ITEMS: RosterNavItem[] = [
     badge: 'Beta',
     live: true,
   },
-  // Groups sits beside Employees because a room is made of them: you hire on
-  // one row and put the hires in a room on the next.
-  { to: ROUTES.GROUPS, label: 'Groups', icon: TeamIcon, end: true, badge: 'Beta' },
-  // §4.2: "a **button**, not a link". The modal opens over whatever is on
-  // screen, so navigating away from it would be the wrong thing to do.
-  { label: 'Search', icon: SearchIcon, onSelect: () => useSearchStore.getState().open() },
-  // No Marketplace row: `Employees` above *is* the marketplace now, and two rows
+  /*
+   * §4.2: "a **button**, not a link". The modal opens over whatever is on screen, so
+   * navigating away from it would be the wrong thing to do.
+   *
+   * The chord is printed rather than merely bound. `useEmployeeSearch` has listened for
+   * Cmd/Ctrl+K since the modal was built, and nothing said so anywhere — a shortcut
+   * nobody can discover is a shortcut nobody uses.
+   */
+  {
+    label: 'Search',
+    icon: SearchIcon,
+    badge: SEARCH_SHORTCUT_LABEL,
+    keyShortcut: 'Meta+K Control+K',
+    onSelect: () => useSearchStore.getState().open(),
+  },
+  /*
+   * Integrations goes to Settings › Connectors, which is the only place in this app that
+   * lists the install's MCP servers. The badge is their count, live off the same
+   * `['mcp-servers', 'current']` entry that page reads, so the two can never disagree.
+   */
+  {
+    to: CONNECTORS_PATH,
+    label: 'Integrations',
+    icon: ConnectorsIcon,
+    connectors: true,
+  },
+  // No Groups row: rooms are still routed, but the sidebar no longer points at them.
+  // No Marketplace row either — `Employees` above *is* the marketplace now, and two rows
   // pointing at one page reads as two places.
 ]
 

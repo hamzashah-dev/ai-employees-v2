@@ -1,11 +1,7 @@
 import { useMemo, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  fetchMcpServers,
-  setMcpServerEnabled,
-} from '@/modules/core/services/hermes/rest'
+import { ACCOUNT_PROFILE } from '@/modules/core/constants/account'
+import { useMcpServers } from '@/modules/core/hooks/use-mcp-servers'
 import type { HermesMcpServer } from '@/modules/core/services/hermes/types'
-import { ACCOUNT_CONNECTORS_PROFILE } from '../../../../constants'
 
 export interface AccountConnectors {
   /** The search box's text, unfiltered and untrimmed. */
@@ -35,39 +31,19 @@ export interface AccountConnectors {
 /**
  * The account's connectors — which in Hermes means the install's own MCP servers.
  *
- * **Knowingly duplicates `@/modules/thread/hooks/use-connectors`.** That hook is
- * keyed per profile and lives in another feature module, so importing it from here
- * would break the one hard rule in `apps/employees/CLAUDE.md` (a feature module may
- * import `modules/core` and `@repo/*` only). Both hooks wrap the same two rest
- * functions over the same `['mcp-servers', profile]` cache key, which is exactly
- * the second-consumer signal the folder convention promotes on: the shared half
- * belongs in `modules/core/hooks/use-mcp-servers`, taking the profile as an
- * argument, with the thread's version passing an employee and this one passing
- * {@link ACCOUNT_CONNECTORS_PROFILE}. Delete both after that move.
+ * The listing and the toggle are `modules/core`'s `useMcpServers`, which is where they
+ * moved once a third surface — the sidebar's `Integrations` count — wanted them. This
+ * hook is what is genuinely account-specific: {@link ACCOUNT_PROFILE} as the scope, and
+ * the search box.
  *
  * The search lives here rather than in the view because `index.tsx` is JSX and
  * `cn()`; filtering on the raw wire fields (name, and the URL or launch command)
  * is logic, and testable without rendering.
  */
 export function useAccountConnectors(): AccountConnectors {
-  const queryClient = useQueryClient()
   const [query, setQuery] = useState('')
+  const { servers, isLoading, error, toggle, pendingName } = useMcpServers(ACCOUNT_PROFILE)
 
-  const servers = useQuery({
-    queryKey: ['mcp-servers', ACCOUNT_CONNECTORS_PROFILE],
-    queryFn: () => fetchMcpServers(ACCOUNT_CONNECTORS_PROFILE),
-  })
-
-  const mutation = useMutation({
-    mutationFn: ({ name, enabled }: { name: string; enabled: boolean }) =>
-      setMcpServerEnabled(name, enabled, ACCOUNT_CONNECTORS_PROFILE),
-    onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: ['mcp-servers', ACCOUNT_CONNECTORS_PROFILE],
-      }),
-  })
-
-  const list = servers.data ?? []
   const search = query.trim().toLowerCase()
 
   /*
@@ -77,25 +53,24 @@ export function useAccountConnectors(): AccountConnectors {
    * five to fifty MCP entries gets a search box at all.
    */
   const results = useMemo(() => {
-    const all = servers.data ?? []
-    if (search.length === 0) return all
-    return all.filter((server) =>
+    if (search.length === 0) return servers
+    return servers.filter((server) =>
       [server.name, server.url ?? '', server.command ?? '']
         .join(' ')
         .toLowerCase()
         .includes(search),
     )
-  }, [servers.data, search])
+  }, [servers, search])
 
   return {
     query,
     setQuery,
-    servers: list,
+    servers,
     results,
-    connectedCount: list.filter((server) => server.enabled).length,
-    isLoading: servers.isLoading,
-    error: servers.error,
-    toggle: (server) => mutation.mutate({ name: server.name, enabled: !server.enabled }),
-    pendingName: mutation.isPending ? mutation.variables?.name : undefined,
+    connectedCount: servers.filter((server) => server.enabled).length,
+    isLoading,
+    error,
+    toggle,
+    ...(pendingName ? { pendingName } : {}),
   }
 }

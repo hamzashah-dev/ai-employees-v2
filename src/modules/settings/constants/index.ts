@@ -39,19 +39,3 @@ export const settingsTabPath = (tab: SettingsTabId): string => `${ROUTES.SETTING
 
 export const isSettingsTab = (value: string | undefined): value is SettingsTabId =>
   SETTINGS_TABS.some((tab) => tab.id === value)
-
-/**
- * Which profile "account level" means when Hermes asks for one.
- *
- * Every MCP route is profile-scoped: `GET /api/mcp/servers` takes `?profile=` and
- * `_profile_scope` re-roots config resolution to that employee's directory. There is
- * no account-level MCP surface — but that function documents `None` / `""` /
- * `"current"` as "the dashboard's own profile", which is the install's own
- * `config.yaml` rather than any one employee's. That install-level list *is* the
- * honest account-level answer, and `'current'` is the spelling that says so out loud
- * instead of relying on an empty string reading as a default.
- *
- * Swap this the day Hermes grows a real account-level MCP surface; nothing else in
- * this module knows about profiles.
- */
-export const ACCOUNT_CONNECTORS_PROFILE = 'current'

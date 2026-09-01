@@ -5,7 +5,7 @@ import { ThinkingStatusRow } from '@/modules/core/components/thinking-status-row
 import type { ChatMessage } from '@/modules/core/types/chat'
 import { MessageError } from '../message-error'
 import { ThinkingTrail } from '../thinking-trail'
-import { MarkdownBody } from './components/markdown-body'
+import { MarkdownBody } from '@/modules/core/components/markdown-body'
 import { buildTimeline } from './utils/build-timeline'
 
 /**

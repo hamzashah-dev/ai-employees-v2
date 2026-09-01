@@ -26,10 +26,10 @@ const FIELD =
  * lives in one place server-side and a copy here would drift. A denied name comes back as a
  * 400 carrying its reason, which this dialog prints verbatim.
  *
- * A second copy of this rule already exists in the employee modal's
- * `utils/vault-keys` — it cannot be imported, because a feature module may not reach into
- * another feature module's internals. **Promote it to `modules/core` when the employee-modal
- * page is retired** and delete whichever copy outlives the other.
+ * This used to be one of two copies, the other living in the employee modal's
+ * `utils/vault-keys`, unimportable because a feature module may not reach into another's
+ * internals. That modal is gone — its identity, workspace and connectors are the right
+ * panel's now — so this is the only copy again.
  */
 export function isValidKeyName(name: string): boolean {
   return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name)

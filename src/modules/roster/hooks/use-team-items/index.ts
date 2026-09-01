@@ -2,8 +2,8 @@ import { useMemo } from 'react'
 import { useGroupStore } from '@/modules/core/stores/group-store'
 import { toGroupRow } from '@/modules/core/utils/group-row'
 import type { GroupRow } from '@/modules/core/utils/group-row'
-import type { RosterEntry } from '../../types'
-import { useRoster } from '../use-roster'
+import { useRoster } from '@/modules/core/hooks/use-roster'
+import type { RosterEntry } from '@/modules/core/types/roster'
 
 /**
  * Team, as one list.

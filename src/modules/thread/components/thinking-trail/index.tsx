@@ -4,7 +4,7 @@ import { ThinkingDisclosure } from '@/modules/core/components/thinking-disclosur
 import { ThinkingPhrase } from '@/modules/core/components/thinking-phrase'
 import { ThinkingStatusRow } from '@/modules/core/components/thinking-status-row'
 import { ThinkingTrailItem } from '@/modules/core/components/thinking-trail-item'
-import { MarkdownBody } from '../employee-message/components/markdown-body'
+import { MarkdownBody } from '@/modules/core/components/markdown-body'
 import type { TimelineGroup } from '../employee-message/utils/build-timeline'
 import { buildTrailEntries } from '../employee-message/utils/build-timeline'
 import { ReasoningIcon, getToolIcon } from './utils'

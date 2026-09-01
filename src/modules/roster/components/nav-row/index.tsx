@@ -6,6 +6,7 @@ import { WithTooltip } from '@repo/ui/tooltip'
 import { SIDEBAR_ROW_CLASSES } from '../../constants'
 import { useSidebarCollapsed } from '../../contexts/sidebar-collapsed'
 import type { RosterNavItem } from '../../types'
+import { NavConnectorCount } from '../nav-connector-count'
 import { NavLiveIndicator } from '../nav-live-indicator'
 
 interface NavRowProps {
@@ -38,7 +39,7 @@ interface NavRowProps {
  */
 export const NavRow: FC<NavRowProps> = ({ item }) => {
   const isCollapsed = useSidebarCollapsed()
-  const { label, icon: Icon, badge, live } = item
+  const { label, icon: Icon, badge, live, connectors, keyShortcut } = item
 
   const rowClasses = (isActive: boolean): string =>
     isCollapsed
@@ -51,7 +52,10 @@ export const NavRow: FC<NavRowProps> = ({ item }) => {
 
   const staticBadge =
     badge && !isCollapsed ? (
-      <Badge size="md" variant="neutral-subtle">
+      // A row that prints its chord announces it through `aria-keyshortcuts` instead, so
+      // the glyphs stay out of the accessible name: the row is called `Search`, not
+      // `Search ⌘K`.
+      <Badge size="md" variant="neutral-subtle" aria-hidden={keyShortcut ? true : undefined}>
         {badge}
       </Badge>
     ) : null
@@ -62,7 +66,18 @@ export const NavRow: FC<NavRowProps> = ({ item }) => {
         <Icon className="size-4 shrink-0 stroke-[1.2px] text-primary transition-all duration-200 ease-linear" />
         {!isCollapsed && <p className="truncate text-label-md text-primary">{label}</p>}
       </div>
-      {live ? <NavLiveIndicator>{staticBadge}</NavLiveIndicator> : staticBadge}
+      {/*
+        A row has at most one right-hand mark. `live` and `connectors` each wrap the
+        static badge rather than replacing it outright, so a row keeps its `Beta` or its
+        `⌘K` until the thing it is counting has an answer.
+      */}
+      {live ? (
+        <NavLiveIndicator>{staticBadge}</NavLiveIndicator>
+      ) : connectors ? (
+        <NavConnectorCount>{staticBadge}</NavConnectorCount>
+      ) : (
+        staticBadge
+      )}
     </>
   )
 
@@ -89,7 +104,12 @@ export const NavRow: FC<NavRowProps> = ({ item }) => {
             {body}
           </NavLink>
         ) : (
-          <button type="button" onClick={item.onSelect} className={rowClasses(false)}>
+          <button
+            type="button"
+            onClick={item.onSelect}
+            aria-keyshortcuts={keyShortcut}
+            className={rowClasses(false)}
+          >
             {body}
           </button>
         )}

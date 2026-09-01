@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useRoster } from '@/modules/core/hooks/use-roster'
 import {
   fetchProfiles,
   fetchSidebarSessions,
@@ -25,6 +26,14 @@ import { searchAcrossProfiles, type MessageHit } from '../../utils/search-across
 const DEBOUNCE_MS = 250
 
 /**
+ * How many employees the resting state offers.
+ *
+ * The list is the roster in recency order, so five is "the ones you have actually been
+ * working with" without the modal opening as a scrollable copy of the sidebar.
+ */
+const RECENT_LIMIT = 5
+
+/**
  * Below two characters the fan-out is all cost and no signal — FTS5 prefix-matches
  * every token, so `a` matches most messages an employee has ever sent.
  */
@@ -41,6 +50,14 @@ export interface SearchRow {
   profile: string
   /** The line the row draws, with the query highlighted inside it. */
   text: string
+  /**
+   * A second line under it — the employee's last outcome, on the resting list only.
+   *
+   * Absent on a result row on purpose: a search result's job is to show *why* it matched,
+   * and a subtitle that had nothing to do with the query would compete with the line that
+   * did.
+   */
+  subtitle?: string
   timeLabel: string
 }
 
@@ -49,8 +66,18 @@ export interface UseEmployeeSearchResult {
   setOpen: (isOpen: boolean) => void
   query: string
   setQuery: (query: string) => void
+  /**
+   * What the modal offers before anything is typed: the roster, newest first.
+   *
+   * Not a search history — nothing records one, and inventing "recent searches" from an
+   * empty store would be a fiction. This is the same recency order the sidebar is in, and
+   * it is free: `useRoster` shares both its queries with the sidebar's own.
+   */
+  recent: SearchRow[]
   employees: SearchRow[]
   messages: SearchRow[]
+  /** How many employees' thread history the fan-out covers. Names the footer's claim. */
+  searchedCount: number
   /** True while the fan-out is running, including for a query still debouncing. */
   isSearching: boolean
   /** True once a query has been typed and neither group has anything to show. */
@@ -84,6 +111,13 @@ export function useEmployeeSearch(): UseEmployeeSearchResult {
     queryKey: ['sidebar-sessions'],
     queryFn: fetchSidebarSessions,
   })
+
+  /*
+   * The resting list is the sidebar's own rows, built once in core off the very same two
+   * query keys — so it is already in the cache on every route, and a rename or a finished
+   * run reaches both surfaces on the same commit.
+   */
+  const { entries } = useRoster()
 
   const names = useMemo(
     () => (profiles.data ?? []).map((profile) => profile.name),
@@ -128,6 +162,18 @@ export function useEmployeeSearch(): UseEmployeeSearchResult {
     [canSearch, hits.data],
   )
 
+  const recent = useMemo<SearchRow[]>(
+    () =>
+      entries.slice(0, RECENT_LIMIT).map((entry) => ({
+        key: entry.profile,
+        profile: entry.profile,
+        text: entry.displayName,
+        subtitle: entry.subtitle,
+        timeLabel: entry.timeLabel,
+      })),
+    [entries],
+  )
+
   const select = useCallback(
     (profile: string) => {
       setOpen(false)
@@ -152,8 +198,10 @@ export function useEmployeeSearch(): UseEmployeeSearchResult {
     setOpen,
     query,
     setQuery,
+    recent,
     employees,
     messages,
+    searchedCount: names.length,
     isSearching,
     isEmpty:
       trimmed.length > 0 &&

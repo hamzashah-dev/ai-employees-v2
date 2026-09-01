@@ -4,15 +4,16 @@ import { Sheet, SheetContent, SheetTitle } from '@repo/ui/sheet'
 import { VisuallyHidden } from '@repo/ui/visually-hidden'
 import { useIsLaptop } from '@/modules/core/hooks/media-query'
 import { useDisplayName } from '@/modules/core/hooks/use-identity'
-import { EmployeeSummary } from './components/employee-summary'
+import { useChatStore } from '@/modules/core/stores/chat-store'
+import { BrowserDock } from './components/browser-dock'
+import { IdentityBlock } from './components/identity-block'
+import { LoginRequest } from './components/login-request'
 import { PanelHeader } from './components/panel-header'
 import { ResizeHandle } from './components/resize-handle'
-import { RoutineEditor } from './components/routine-editor'
-import { RoutinesSection } from './components/routines-section'
-import { ScreenActions } from './components/screen-actions'
-import { ScreenPreview } from './components/screen-preview'
+import { RoutinesPreview } from './components/routines-preview'
+import { WorkspaceSection } from './components/workspace-section'
+import { useBrowserView } from './hooks/use-browser-view'
 import { usePanelResize } from './hooks/use-panel-resize'
-import { usePanelView } from './hooks/use-panel-view'
 
 export interface EmployeePanelProps {
   profile: string
@@ -20,7 +21,19 @@ export interface EmployeePanelProps {
 }
 
 /**
- * The employee drawer.
+ * The employee panel.
+ *
+ * Everything about one employee, in one place: who they are, what they have written, what
+ * they run on a schedule, and — only while it is happening — what their browser is doing.
+ * It replaces two surfaces that used to disagree with each other. The info modal opened over
+ * the conversation and held the same identity, the same workspace and the same connectors;
+ * this drawer held a permanent drawing of a browser that was, in its own words, "not a
+ * picture of anything". The modal is gone and the drawing with it.
+ *
+ * **Read-only, except the model.** Editing an employee's colour, shape or display name is a
+ * per-device preference that changes nothing on disk, so it lives behind a deliberate open
+ * (`AppearanceDialog`); routines open in their own dialog. The model picker is the exception
+ * and stays inline, because it is the one control here that changes what the next turn does.
  *
  * From `laptop` up it is a sibling of the thread rather than an overlay: it takes its
  * width out of the layout, so the conversation reflows beside it and nothing is ever
@@ -46,67 +59,69 @@ export const EmployeePanel: FC<EmployeePanelProps> = ({ profile, onClose }) => {
   // One toggle, two controls: the header's button and the frame's own. Stable so
   // the frame's focus listener is not re-bound on every render.
   const toggleMaximize = useCallback(() => setIsMaximized((on) => !on), [])
-  const { view, backLabel, back, openEditor } = usePanelView(onClose)
+
   const displayName = useDisplayName(profile)
+  const isWorking = useChatStore((state) => state.threads[profile]?.status === 'working')
+  const { liveUrl, agentBrowsing, steps, clarify, answer } = useBrowserView(profile)
+
+  /*
+   * The dock is drawn while there is a session to report, and not otherwise.
+   *
+   * Three signals, and each is here for a reason the other two do not cover:
+   *
+   * - `agentBrowsing` is a call *in flight*. On its own it flickers: it drops to false in
+   *   the gap between every `tool.complete` and the next `tool.start`, which on a long
+   *   browsing turn is several times a minute.
+   * - So the turn holds it open — `isWorking` with steps already on the board means the
+   *   employee is between browser calls, not finished with them. When the turn ends, so
+   *   does the card, which is the canvas's idle state: no session, nothing drawn.
+   * - `liveUrl` outlives both. An address is a browser that is still open and still
+   *   signable-into, whether or not anything is driving it this second.
+   */
+  const hasBrowserSession =
+    liveUrl !== null || agentBrowsing || (isWorking && steps.length > 0)
 
   const body = (
     <>
       <PanelHeader
-        onBack={back}
-        backLabel={backLabel}
+        label={isWorking ? `${displayName} is working` : 'Employee'}
         onClose={onClose}
-        // Below `laptop` the drawer is already a full-height sheet, so there is
+        // Below `laptop` the panel is already a full-height sheet, so there is
         // nothing to maximize into.
         onToggleMaximize={isLaptop ? toggleMaximize : undefined}
         isMaximized={isMaximized}
       />
 
-      <div className="scrollbar-minimal flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-4">
-        {view.name === 'editor' ? (
-          <RoutineEditor
-            profile={profile}
-            job={view.job}
-            onDone={back}
-            onCancel={back}
-          />
-        ) : (
-          <>
-            {/*
-              At the default width the preview is already the canvas's 16:10
-              (448 x 280 inside the 480px drawer). Maximized it cannot stay
-              16:10 — 16:10 of a 1352px content width is 845px tall, which is
-              the whole viewport, leaving no room for the action strip the
-              design puts beneath it. A capped height is the honest resolution;
-              the canvas is silent on the maximized aspect.
-            */}
-            <ScreenPreview
-              profile={profile}
-              /*
-               * No height override any more, in either state: the frame sizes
-               * itself 16:9 from its width, because that is the only ratio that
-               * leaves no grey letterbox around the 1920x1080 remote screen
-               * (see BOX in browser-frame). Forcing a height here would put the
-               * bars straight back — which is what a `h-[52vh]` was doing.
-               */
-              className={cn({ 'max-w-none': isMaximized })}
-              isExpanded={isMaximized}
-              onToggleExpand={isLaptop ? toggleMaximize : undefined}
-            />
-            <p className="text-center text-label-sm text-tertiary">
-              {displayName}’s screen
-            </p>
-            {isMaximized && (
-              <div className="pt-3">
-                <ScreenActions profile={profile} displayName={displayName} />
-              </div>
-            )}
-            {/* The canvas's own 12px breath between the screen and the routines. */}
-            <div aria-hidden className="h-3 shrink-0" />
-            <RoutinesSection profile={profile} onEdit={openEditor} />
-            <EmployeeSummary profile={profile} />
-          </>
-        )}
+      <div className="scrollbar-minimal flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pt-1 pb-4">
+        <IdentityBlock profile={profile} />
+
+        {/* The request goes above everything it is about: it is the thing that has stopped,
+            and until it is answered nothing else in here will change. */}
+        {clarify && <LoginRequest request={clarify} onAnswer={answer} />}
+
+        <WorkspaceSection profile={profile} displayName={displayName} />
+        <RoutinesPreview profile={profile} displayName={displayName} />
+
+        {/*
+          The slug, said out loud, last.
+          A display name is a label this device puts over the profile directory — Hermes has
+          no rename and no name field — so the panel names the real thing rather than letting
+          a local label quietly stand in for it everywhere.
+        */}
+        <p className="text-label-xs text-tertiary">
+          Hermes’ own name for this employee is <code className="font-mono">{profile}</code>.
+        </p>
       </div>
+
+      {hasBrowserSession && (
+        <BrowserDock
+          liveUrl={liveUrl}
+          agentBrowsing={agentBrowsing}
+          steps={steps}
+          isExpanded={isMaximized}
+          onToggleExpand={isLaptop ? toggleMaximize : undefined}
+        />
+      )}
     </>
   )
 

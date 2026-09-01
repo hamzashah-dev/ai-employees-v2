@@ -1,4 +1,5 @@
 import { Fragment, type FC } from 'react'
+import { cn } from '@repo/ui/cn'
 import { EmployeeAvatar } from '@/modules/core/components/employee-avatar'
 import { useDisplayName } from '@/modules/core/hooks/use-identity'
 import { highlight } from '../../utils/highlight'
@@ -11,9 +12,14 @@ interface ResultRowProps {
 }
 
 /**
- * One result, in either group: 12px radius, the employee's avatar, the matched
+ * One row, in any of the three groups: 12px radius, the employee's avatar, the matched
  * line with the query span in `content-primary` against `content-secondary`
  * surroundings, and a right-aligned timestamp.
+ *
+ * A `subtitle` makes it two lines and the first line solid `content-primary`, which is the
+ * resting `Recent` list — there is no query to pick out there, and what the row is for is
+ * naming the employee and what it last did. A result row stays one line for the opposite
+ * reason: the matched text *is* the content.
  *
  * Every row — message rows included — opens that **employee's thread**, not the
  * message. That is the honest destination, not a shortcut: `SessionManager` binds
@@ -35,20 +41,32 @@ export const ResultRow: FC<ResultRowProps> = ({ row, query, onSelect }) => {
     >
       <EmployeeAvatar profile={row.profile} size={28} />
 
-      <span className="min-w-0 flex-1 truncate text-label-md text-secondary">
-        {highlight(row.text, query).map((segment, index) => (
-          <Fragment key={index}>
-            {segment.match ? (
-              <span className="text-primary">{segment.text}</span>
-            ) : (
-              segment.text
-            )}
-          </Fragment>
-        ))}
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span
+          className={cn('truncate text-label-md', {
+            'text-primary': row.subtitle !== undefined,
+            'text-secondary': row.subtitle === undefined,
+          })}
+        >
+          {highlight(row.text, query).map((segment, index) => (
+            <Fragment key={index}>
+              {segment.match ? (
+                <span className="text-primary">{segment.text}</span>
+              ) : (
+                segment.text
+              )}
+            </Fragment>
+          ))}
+        </span>
+        {row.subtitle && (
+          <span className="truncate text-label-sm text-tertiary">{row.subtitle}</span>
+        )}
       </span>
 
       {row.timeLabel && (
-        <span className="shrink-0 text-label-xs text-tertiary">{row.timeLabel}</span>
+        <span className="shrink-0 self-start pt-0.5 text-label-xs text-tertiary">
+          {row.timeLabel}
+        </span>
       )}
     </button>
   )

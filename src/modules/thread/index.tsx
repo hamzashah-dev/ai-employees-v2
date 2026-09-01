@@ -11,6 +11,8 @@ interface ThreadViewProps {
   profile: string
   panelOpen: boolean
   onTogglePanel: () => void
+  /** Opens the panel if it is closed. The header's identity button is the caller. */
+  onOpenPanel: () => void
   /** Opens the sidebar drawer. Only shown below `desktop-sm`, where the panel is hidden. */
   onOpenSidebar?: () => void
 }
@@ -26,6 +28,7 @@ export const ThreadView: FC<ThreadViewProps> = ({
   profile,
   panelOpen,
   onTogglePanel,
+  onOpenPanel,
   onOpenSidebar,
 }) => {
   const { thread, connection } = useThread(profile)
@@ -42,6 +45,7 @@ export const ThreadView: FC<ThreadViewProps> = ({
         displayName={displayName}
         panelOpen={panelOpen}
         onTogglePanel={onTogglePanel}
+        onOpenPanel={onOpenPanel}
         onOpenSidebar={onOpenSidebar}
       />
 

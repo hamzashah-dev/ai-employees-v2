@@ -11,8 +11,8 @@ import { useAccountConnectors } from './hooks/use-account-connectors'
  * Screen 2b — Connectors, at account level.
  *
  * The integrations design, one level up from an employee: the same MCP servers the
- * employee modal lists, but the install's own set rather than one profile's. See
- * `ACCOUNT_CONNECTORS_PROFILE` in the module's constants for why that is the honest
+ * composer's dropdown lists, but the install's own set rather than one profile's. See
+ * `ACCOUNT_PROFILE` in `modules/core/constants/account` for why that is the honest
  * reading of "account level" — Hermes has no account-level MCP surface, and every
  * MCP route is profile-scoped.
  *
@@ -26,9 +26,9 @@ import { useAccountConnectors } from './hooks/use-account-connectors'
  *    {@link describeServer}. A sentence invented per server is the one thing this
  *    surface must not print.
  * 2. **A brand mark per row.** Same payload, same gap: no icon and no vendor id. A
- *    name→logo lookup does exist, in `modules/thread/.../utils/connector-icon`, and
- *    it belongs in `modules/core` — until it moves, every row here draws the generic
- *    connector glyph rather than this file forking a forty-entry table.
+ *    name→logo lookup does exist, in `modules/thread/components/connectors-dialog/utils/
+ *    connector-icon`, and it belongs in `modules/core` — until it moves, every row here
+ *    draws the generic connector glyph rather than this file forking a forty-entry table.
  * 3. **Live connection state.** `enabled` is a config flag Hermes reads when a turn
  *    starts; nothing reports whether a server is reachable or signed in. Only
  *    `POST /api/mcp/servers/{name}/test` knows, and it finds out by opening a
