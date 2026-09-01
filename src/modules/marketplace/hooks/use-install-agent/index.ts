@@ -1,46 +1,58 @@
 import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query'
-import { createProfile, updateProfileSoul } from '@/modules/core/services/hermes/rest'
-import { composeSoul } from '../../utils/compose-soul'
+import { installProfile } from '@/modules/core/services/hermes/rest'
 import type { CatalogAgent } from '../../constants/catalog'
 
 /**
- * What a hired agent runs on.
+ * Where the backend finds an agent's distribution pack.
  *
- * `POST /api/profiles` only writes a model into the new profile's config.yaml
- * when BOTH `provider` and `model` are sent (web_server.py ~14885). Send
- * neither and the profile gets no model config at all, and a profile's config
- * is a one-time COPY of the root config, not live inheritance — so a hire
- * silently lands on whatever model the root happened to hold at hire time, and
- * stays there. That is how a hire ends up on an expensive model nobody chose.
- * Pin it explicitly instead.
+ * A path, not a URL, resolved by `profile_distribution._stage_source` relative
+ * to the backend's working directory — which is the cloud-computer checkout,
+ * since that is what serves `/api/*`. Every id in `AVAILABLE_AGENT_IDS` has a
+ * directory there; that is what the gate means, and the invariant test in
+ * `constants/catalog/catalog.test.ts` is what keeps it true.
  */
-export const HIRED_AGENT_MODEL = { provider: 'openrouter', model: 'minimax/minimax-m3' } as const
+const packSource = (id: string): string => `agents/${id}`
 
 /**
- * Hiring an agent is creating a Hermes profile named after it, seeded with the
- * catalog tagline as its description — and then giving it an identity.
+ * Hiring an agent installs its distribution pack.
  *
- * That second step matters more than it looks. `POST /api/profiles` copies the
- * bundled skills and writes the description, but leaves `SOUL.md` as the stock
- * Computer Agent boilerplate. A freshly hired "LinkedIn Agent" therefore has
- * every LinkedIn skill on disk and still answers "I'm Computer Agent — I can
- * write code, handle email…", because the system prompt never mentioned
- * LinkedIn. The card and the thread disagree about who was hired.
+ * One call. `POST /api/profiles/install` runs `install_distribution`, which
+ * copies the pack's `SOUL.md`, `config.yaml`, `profile.yaml`, `skills/`,
+ * `cron/`, `hooks/` and `checks/` into `.computer/profiles/<id>`, then seeds the
+ * bundled skills. Identity, model, tool gating and schedule all come from files
+ * in `agents/<id>/` that are reviewable in a diff.
  *
- * EVERY agent gets an identity, not just the two with a hand-authored `soul`:
- * `composeSoul` falls back to the card's own copy, quoted rather than
- * paraphrased. Writing souls by hand does not scale to ninety-seven entries,
- * and leaving ninety-five of them as "I'm Computer Agent" is the bug this
- * whole path exists to fix.
+ * ## Why this replaced create-then-write-soul
  *
- * The soul write is deliberately NOT fatal. The profile exists by then and is
- * usable; failing the whole mutation would leave a hired agent behind an error
- * state and tempt a retry that 409s on the name. It is surfaced instead as a
- * warning, so the failure is visible without being destructive.
+ * The previous path called `POST /api/profiles` and then `PUT .../soul` with a
+ * soul composed from the card's own marketing copy. It worked, and it made the
+ * catalog a second source of truth for who an agent *is*: hiring "LinkedIn
+ * Agent" produced an approximation of the card rather than the SOUL.md we
+ * actually wrote and test against. `composeSoul` stays in the tree because it is
+ * still the honest fallback for the ninety-three entries with no pack — but none
+ * of those can be hired, since the shelf only renders gated ids.
  *
- * Errors from the create are left on the mutation rather than swallowed —
- * Hermes answers a name collision or a bad slug with a `detail` string worth
- * reading, and the card prints it.
+ * ## What the pack now has to carry itself
+ *
+ * The old path passed `clone_from_default: true`, and that was load-bearing for
+ * a reason worth restating: without a `browser.camofox` block a profile gets
+ * `managed_persistence: false`, meaning a random userId per session
+ * (`tools/browser_camofox.py`). A human signs into LinkedIn once in the live
+ * view and the next run opens a context that has never heard of them. Install
+ * does not clone, so each pack's own `config.yaml` carries that block. All three
+ * do; a fourth that forgets will look fine and quietly lose its logins.
+ *
+ * Same story for the model. The old path pinned one explicitly because a profile
+ * config is a one-time COPY of the root config, so an unset model silently
+ * freezes at whatever the root held on hire day. The pack pins it instead — the
+ * agent declares what it runs on.
+ *
+ * ## Errors
+ *
+ * A missing or malformed pack, a version mismatch, or a name collision comes
+ * back as a 400 with a readable `detail`, which the card prints. `force` is
+ * deliberately not passed: hiring twice should say the profile already exists
+ * rather than overwrite one the user has been using.
  */
 export function useInstallAgent(
   agent: CatalogAgent,
@@ -49,39 +61,7 @@ export function useInstallAgent(
 
   return useMutation({
     mutationKey: ['install-agent', agent.id],
-    mutationFn: async () => {
-      const created = await createProfile({
-        // Clone the default profile's config rather than starting bare.
-        //
-        // A profile created with no config.yaml gets `managed_persistence:
-        // false`, which means "each session gets a random userId (ephemeral)"
-        // (tools/browser_camofox.py). For a browsing agent that is fatal in a
-        // quiet way: a human signs into LinkedIn in the live view, and the next
-        // run opens a fresh browser context that has never heard of them — and
-        // the click may not even land in the context the agent is driving.
-        // The default profile already carries the identity block
-        // (`user_id` / `session_key` / `adopt_existing_tab: true`), so cloning
-        // is what makes "log in once" actually mean once.
-        //
-        // Safe to combine with the model pin below: the endpoint writes the
-        // explicit model AFTER create_profile() returns, so it overrides
-        // whatever the clone brought. Same for SOUL.md, overwritten right after.
-        clone_from_default: true,
-        name: agent.id,
-        description: agent.tagline,
-        ...HIRED_AGENT_MODEL,
-      })
-      try {
-        await updateProfileSoul(agent.id, composeSoul(agent))
-      } catch (error) {
-        console.warn(
-          `[marketplace] ${agent.name} was hired but kept the default SOUL.md — ` +
-            `it will answer as a general assistant.`,
-          error,
-        )
-      }
-      return created
-    },
+    mutationFn: () => installProfile({ source: packSource(agent.id) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['profiles'] }),
   })
 }
