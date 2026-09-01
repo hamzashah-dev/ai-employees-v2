@@ -111,9 +111,10 @@ const ENTRIES: readonly CatalogEntry[] = [
     name: 'Inbox Triage',
     tagline: 'Sorts the overnight inbox and tells you the three things that need you.',
     category: 'Personal',
-    runs: 3481,
-    installs: 4112,
-    addedAt: '2025-01-14',
+    // Zeroed: real pack behind it, no runs yet.
+    runs: 0,
+    installs: 0,
+    addedAt: '2026-08-31',
     duties: [
       'Reads every overnight message and sorts it into reply, later, or ignore.',
       'Writes a three-line brief naming what actually needs you today.',
@@ -678,9 +679,30 @@ const ENTRIES: readonly CatalogEntry[] = [
     name: 'Competitor Watch',
     tagline: 'Tracks the five companies you care about and flags what changed.',
     category: 'Research',
-    runs: 774,
-    installs: 1102,
-    addedAt: '2025-03-31',
+    // Zeroed: real pack behind it, no runs yet.
+    runs: 0,
+    installs: 0,
+    addedAt: '2026-08-31',
+    duties: [
+      'Re-reads the watchlist every morning and diffs each page.',
+      'Reports only what moved — a quiet week is one line.',
+      'Puts the URL and the date it read it under every claim.',
+      'Marks a page it could not read as unread, with the reason.',
+    ],
+    // Reads public pages in its own browser; connects to nothing.
+    connectors: [],
+    requirements: [
+      {
+        name: 'WATCHLIST',
+        why: 'The URLs to watch — pricing, changelogs, careers. One per line.',
+        satisfiedBy: 'value',
+      },
+    ],
+    howItWorks: [
+      'Reads public pages; signups and trials stay with you.',
+      'Reports the change; any guess about why is flagged separately.',
+      'Runs at 08:00 and writes the brief to its workspace.',
+    ],
   },
   {
     id: 'paper-reader',
@@ -1544,9 +1566,14 @@ Voice: numerate, plain, comfortable saying the data will not support that.
  */
 export const AVAILABLE_AGENT_IDS: ReadonlySet<string> = new Set([
   'ad-creator',
+  'competitor-watch',
   'linkedin-agent',
   'startup-kit-agent',
 ])
+
+// `inbox-triage` has a pack at agents/inbox-triage/ but stays off the shelf
+// until connectors ship — its card requires Gmail and Slack as connectors. Add
+// the id in the commit that makes those real.
 
 /**
  * Every authored entry, available or not.
