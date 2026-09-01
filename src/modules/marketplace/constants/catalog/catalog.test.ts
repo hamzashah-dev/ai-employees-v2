@@ -119,10 +119,27 @@ describe('CATALOG', () => {
     expect(detailed.length).toBeGreaterThanOrEqual(SPEC_AGENTS.length)
 
     for (const agent of detailed) {
+      // Fixed-length tuples: a short one renders a gap on the detail page.
       expect(agent.duties, agent.name).toHaveLength(4)
       expect(agent.howItWorks, agent.name).toHaveLength(3)
-      expect(agent.connectors?.length ?? 0, agent.name).toBeGreaterThan(0)
-      expect(agent.requirements?.length ?? 0, agent.name).toBeGreaterThanOrEqual(3)
+      // An agent that asks for nothing renders an empty "Needs from you" block.
+      expect(agent.requirements?.length ?? 0, agent.name).toBeGreaterThanOrEqual(1)
+    }
+  })
+
+  /**
+   * Not "every detailed agent has connectors": `competitor-watch` reads public
+   * pages and connects to nothing. The invariant is coherence — a requirement
+   * satisfied by a connector needs one listed.
+   */
+  it('lists connectors when, and only when, a requirement needs one', () => {
+    for (const agent of CATALOG) {
+      const needsConnector = (agent.requirements ?? []).some(
+        (requirement) => requirement.satisfiedBy === 'connector',
+      )
+      if (needsConnector) {
+        expect(agent.connectors?.length ?? 0, agent.name).toBeGreaterThan(0)
+      }
     }
   })
 

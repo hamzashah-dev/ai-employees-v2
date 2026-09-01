@@ -31,9 +31,9 @@ export type MakerId = (typeof MAKERS)[number]
  * set collapses to `agent.maker === 'imagine'`.
  */
 const MADE_BY_IMAGINE: ReadonlySet<string> = new Set([
-  // The three with a real distribution pack under agents/ in cloud-computer —
-  // ours by authorship, not just by how much product surface they have.
+  // Ours by authorship — these have packs under agents/.
   'ad-creator',
+  'competitor-watch',
   'linkedin-agent',
   'startup-kit-agent',
   'inbox-triage',
