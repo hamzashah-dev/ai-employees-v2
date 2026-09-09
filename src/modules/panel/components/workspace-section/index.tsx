@@ -1,9 +1,11 @@
 import { useId, useState, type FC } from 'react'
 import { ArrowUpRightIcon } from '@repo/icons/arrow-up-right'
+import { LayoutGridIcon } from '@repo/icons/layout-grid-icon'
 import { Skeleton } from '@repo/ui/skeleton'
 import { FileRows } from '@/modules/core/components/workspace/components/file-rows'
 import { GLANCE_FILES } from '@/modules/core/components/workspace/constants'
 import { useWorkspaceFiles } from '@/modules/core/components/workspace/hooks/use-workspace-files'
+import { useWorkspaceGalleryStore } from '@/modules/core/stores/workspace-gallery-store'
 import { WorkspaceDialog } from '../workspace-dialog'
 
 interface WorkspaceSectionProps {
@@ -37,15 +39,27 @@ export const WorkspaceSection: FC<WorkspaceSectionProps> = ({ profile, displayNa
           Workspace
         </h2>
         {ready && files.length > 0 && (
-          <button
-            type="button"
-            aria-haspopup="dialog"
-            onClick={() => setOpen(true)}
-            className="flex shrink-0 cursor-pointer items-center gap-1 rounded-lg px-1.5 py-0.5 text-label-sm text-secondary transition-colors duration-200 ease-linear hover:bg-fill-variant-hover hover:text-primary focus-visible:bg-fill-variant-hover focus-visible:outline-none"
-          >
-            See all {files.length}
-            <ArrowUpRightIcon className="size-3" />
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            {/* §s23 — the media/docs/folders gallery view, a grid alternative to the list below. */}
+            <button
+              type="button"
+              aria-haspopup="dialog"
+              aria-label="Manage workspace media"
+              onClick={() => useWorkspaceGalleryStore.getState().open(profile, displayName)}
+              className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-lg text-secondary transition-colors duration-200 ease-linear hover:bg-fill-variant-hover hover:text-primary focus-visible:bg-fill-variant-hover focus-visible:outline-none"
+            >
+              <LayoutGridIcon className="size-3.5" />
+            </button>
+            <button
+              type="button"
+              aria-haspopup="dialog"
+              onClick={() => setOpen(true)}
+              className="flex shrink-0 cursor-pointer items-center gap-1 rounded-lg px-1.5 py-0.5 text-label-sm text-secondary transition-colors duration-200 ease-linear hover:bg-fill-variant-hover hover:text-primary focus-visible:bg-fill-variant-hover focus-visible:outline-none"
+            >
+              See all {files.length}
+              <ArrowUpRightIcon className="size-3" />
+            </button>
+          </div>
         )}
       </div>
 

@@ -1,6 +1,7 @@
-import type { FC, ReactNode } from 'react'
+import { useEffect, useMemo, useState, type FC, type ReactNode } from 'react'
 import { SearchIcon } from '@repo/icons/search'
 import { Badge } from '@repo/ui/badge'
+import { cn } from '@repo/ui/cn'
 import { Skeleton } from '@repo/ui/skeleton'
 import {
   Dialog,
@@ -11,6 +12,8 @@ import {
 import { SEARCH_SHORTCUT_LABEL } from '@/modules/core/constants/shortcuts'
 import { ResultRow } from './components/result-row'
 import { useEmployeeSearch, type SearchRow } from './hooks/use-employee-search'
+
+type ResultTab = 'all' | 'employees' | 'messages'
 
 /**
  * D10 — search across the team, over whatever is behind it.
@@ -54,10 +57,26 @@ export const EmployeeSearchModal: FC = () => {
 
   const trimmed = query.trim()
   const isResting = trimmed.length === 0
+  const hasResults = !isResting && !isSearching && !isEmpty
+
+  const [tab, setTab] = useState<ResultTab>('all')
+  // A tab held from the previous query reads as a filter nobody chose — reset
+  // it the moment the box goes back to resting, same as the query itself.
+  useEffect(() => {
+    if (isResting) setTab('all')
+  }, [isResting])
+
+  // Messages are searched one thread (employee) at a time, so "in N threads" is a
+  // distinct count over the hits rather than the hit count itself.
+  const threadCount = useMemo(
+    () => new Set(messages.map((row) => row.profile)).size,
+    [messages],
+  )
+  const resultCount = employees.length + messages.length
 
   return (
     <Dialog open={isOpen} onOpenChange={setOpen}>
-      <DialogContent className="top-[12%] flex max-h-[70dvh] w-[calc(100vw-2rem)] max-w-[640px] translate-y-0 flex-col gap-0 overflow-hidden rounded-[20px] border-primary bg-surface-elevated p-0 shadow-lg">
+      <DialogContent className="top-[12%] flex max-h-[70dvh] w-[calc(100vw-2rem)] max-w-[640px] translate-y-0 flex-col gap-0 overflow-hidden rounded-[20px] border-secondary bg-surface p-0 shadow-lg">
         <DialogTitle className="sr-only">Search your team</DialogTitle>
         <DialogDescription className="sr-only">
           Find an employee by name, or a message in any employee’s thread.
@@ -87,32 +106,56 @@ export const EmployeeSearchModal: FC = () => {
               Searching threads
             </span>
           )}
+          {hasResults && (
+            <Badge size="md" variant="neutral-subtle" className="shrink-0">
+              {resultCount} {resultCount === 1 ? 'result' : 'results'}
+              {threadCount > 0 &&
+                ` in ${threadCount} ${threadCount === 1 ? 'thread' : 'threads'}`}
+            </Badge>
+          )}
         </div>
+
+        {!isResting && (employees.length > 0 || messages.length > 0 || isSearching) && (
+          <div className="flex h-[45px] shrink-0 items-center gap-1.5 border-b border-primary px-3 py-2">
+            <TabButton active={tab === 'all'} onClick={() => setTab('all')}>
+              All
+            </TabButton>
+            <TabButton active={tab === 'employees'} onClick={() => setTab('employees')}>
+              Employees
+            </TabButton>
+            <TabButton active={tab === 'messages'} onClick={() => setTab('messages')}>
+              Messages
+            </TabButton>
+          </div>
+        )}
 
         <div className="min-h-0 flex-1 overflow-y-auto p-2">
           {isResting ? (
             <Group title="Recent" rows={recent} query="" onSelect={select} />
           ) : (
             <>
-              <Group title="Employees" rows={employees} query={query} onSelect={select} />
+              {tab !== 'messages' && (
+                <Group title="Employees" rows={employees} query={query} onSelect={select} />
+              )}
 
               {/*
                 Placeholders, not an empty section. The heading is the promise that this
                 group is coming; dropping it until the hits land makes the list jump under
                 the cursor at the exact moment someone is reading it.
               */}
-              {isSearching && messages.length === 0 ? (
-                <section className="pb-1" aria-busy>
-                  <GroupHeading>Messages</GroupHeading>
-                  <div className="flex flex-col gap-3 px-3 py-3">
-                    <Skeleton className="h-3 w-[70%] bg-fill-elevated" />
-                    <Skeleton className="h-3 w-[42%] bg-fill-elevated" />
-                    <Skeleton className="h-3 w-[55%] bg-fill-elevated" />
-                  </div>
-                </section>
-              ) : (
-                <Group title="Messages" rows={messages} query={query} onSelect={select} />
-              )}
+              {tab !== 'employees' &&
+                (isSearching && messages.length === 0 ? (
+                  <section className="pb-1" aria-busy>
+                    <GroupHeading>Messages</GroupHeading>
+                    <div className="flex flex-col gap-3 px-3 py-3">
+                      <Skeleton className="h-3 w-[70%] bg-fill-elevated" />
+                      <Skeleton className="h-3 w-[42%] bg-fill-elevated" />
+                      <Skeleton className="h-3 w-[55%] bg-fill-elevated" />
+                    </div>
+                  </section>
+                ) : (
+                  <Group title="Messages" rows={messages} query={query} onSelect={select} />
+                ))}
 
               {isEmpty && <NoResults query={trimmed} />}
             </>
@@ -123,12 +166,34 @@ export const EmployeeSearchModal: FC = () => {
           isResting={isResting}
           isSearching={isSearching}
           isEmpty={isEmpty}
+          hasResults={hasResults}
           searchedCount={searchedCount}
         />
       </DialogContent>
     </Dialog>
   )
 }
+
+/** One pill in the results filter row — matches the canvas's `bg-border-secondary` active state. */
+const TabButton: FC<{ active: boolean; onClick: () => void; children: ReactNode }> = ({
+  active,
+  onClick,
+  children,
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-pressed={active}
+    className={cn(
+      'flex h-7 items-center rounded-full px-3 text-label-sm transition-colors duration-200 ease-linear',
+      active
+        ? 'bg-fill-variant-active font-medium text-primary'
+        : 'text-secondary hover:text-primary',
+    )}
+  >
+    {children}
+  </button>
+)
 
 /**
  * A heading with nothing under it reads as a broken section, so an empty group is
@@ -168,9 +233,26 @@ const Footer: FC<{
   isResting: boolean
   isSearching: boolean
   isEmpty: boolean
+  hasResults: boolean
   searchedCount: number
-}> = ({ isResting, isSearching, isEmpty, searchedCount }) => {
+}> = ({ isResting, isSearching, isEmpty, hasResults, searchedCount }) => {
   const employeeWord = searchedCount === 1 ? 'employee' : 'employees'
+
+  // Once there is something on screen to move through, the canvas swaps the running
+  // commentary for the keyboard hints that actually apply to it — a row can be
+  // arrowed to and opened, and every row opens the employee, never the message.
+  if (hasResults) {
+    return (
+      <div className="flex h-10 shrink-0 items-center justify-between gap-3 border-t border-primary px-3.5">
+        <div className="flex items-center gap-3">
+          <KeyHint keys={['↑', '↓']} label="Move" />
+          <KeyHint keys={['↵']} label="Open thread" />
+          <KeyHint keys={['esc']} label="Close" />
+        </div>
+        <p className="shrink-0 text-label-sm text-tertiary">Opens the employee, not the message</p>
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-t border-primary px-4">
@@ -191,6 +273,23 @@ const Footer: FC<{
     </div>
   )
 }
+
+/** One `key · label` pair in the results footer, e.g. `↑ ↓ Move`. */
+const KeyHint: FC<{ keys: string[]; label: string }> = ({ keys, label }) => (
+  <span className="flex items-center gap-1.5 text-label-sm text-tertiary">
+    <span className="flex items-center gap-1">
+      {keys.map((key) => (
+        <span
+          key={key}
+          className="flex h-4 min-w-4 items-center justify-center rounded border border-tertiary px-1 text-label-xs text-tertiary"
+        >
+          {key}
+        </span>
+      ))}
+    </span>
+    {label}
+  </span>
+)
 
 /**
  * The no-results state (drawn as an annotated inset on the canvas).

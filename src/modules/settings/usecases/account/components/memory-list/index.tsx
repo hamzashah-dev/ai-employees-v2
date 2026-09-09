@@ -80,8 +80,9 @@ export const MemoryList: FC<MemoryListProps> = ({
 
         <Button
           type="button"
-          variant="link-accent"
+          variant="outline"
           size="xs"
+          shape="pill"
           disabled={isLoading || errorMessage !== undefined}
           onClick={() => {
             onDismissWriteError()

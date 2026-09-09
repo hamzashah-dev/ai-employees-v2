@@ -11,10 +11,10 @@ import { TeamHeading } from '../team-heading'
  * heading with its hire `+`, the roster, and Routines pinned above the footer so
  * it stays reachable however long the roster grows.
  *
- * The roster is dropped from the icon rail rather than squeezed into it. A row here is an
- * identity disc plus a name over its last outcome — the disc alone would tower over the 16px
- * nav glyphs beside it, and the outcome line is the reason the row exists. Nav, Routines and
- * the footer all have honest glyph forms; this does not, so it waits for the panel.
+ * Collapsed (s14 collapsed rail), the Team heading drops — there is no room for
+ * its label and hire menu — but the roster itself stays: each row collapses to
+ * its own disc instead, exactly as `NavRow` collapses to a bare glyph. The
+ * canvas draws four discs, in the rail, below the nav icons.
  */
 export const SidebarEmployeesBody: FC = () => {
   const isCollapsed = useSidebarCollapsed()
@@ -29,17 +29,18 @@ export const SidebarEmployeesBody: FC = () => {
         </ul>
       </nav>
 
-      {!isCollapsed && (
-        <>
-          <TeamHeading />
+      {!isCollapsed && <TeamHeading />}
 
-          <div className="scrollbar-minimal flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-2">
-            <RosterList />
-          </div>
-        </>
-      )}
+      <div
+        className={cn(
+          'scrollbar-minimal flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto',
+          isCollapsed ? 'gap-1 px-2' : 'px-2',
+        )}
+      >
+        <RosterList />
+      </div>
 
-      <div className={cn('shrink-0 py-1', isCollapsed ? 'mt-auto px-2' : 'px-2')}>
+      <div className="shrink-0 px-2 py-1">
         <ul>
           <NavRow item={ROUTINES_ITEM} />
         </ul>

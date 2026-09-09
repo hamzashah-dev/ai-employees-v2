@@ -24,6 +24,8 @@ export interface UseGroupRoomResult {
   maxRounds: number
   /** 1-based round the drive is on; 0 when idle. */
   round: number
+  /** Milliseconds. When the room was created — the panel's file cutoff. */
+  createdAt: number
   /** How the last drive ended. */
   exit: GroupRoundExit | null
   draft: string
@@ -120,6 +122,7 @@ export function useGroupRoom(roomId: string | undefined): UseGroupRoomResult {
   }, [roomId])
 
   return {
+    createdAt: room?.createdAt ?? 0,
     draft,
     exists: Boolean(room),
     exit: room?.lastExit ?? null,

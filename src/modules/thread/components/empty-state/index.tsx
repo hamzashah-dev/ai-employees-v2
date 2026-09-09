@@ -6,10 +6,7 @@ interface EmptyStateProps {
   displayName: string
 }
 
-/**
- * Not drawn on the canvas — every artboard shows a thread mid-conversation.
- * Built from the canvas's own parts so a fresh hire reads as the same surface.
- */
+/** The empty thread a freshly hired employee opens to, before the first message. */
 export const EmptyState: FC<EmptyStateProps> = ({ profile, displayName }) => (
   <div className="flex flex-col items-center gap-3 py-20 text-center">
     <EmployeeAvatar profile={profile} size={48} />

@@ -148,7 +148,14 @@ export const RequirementRow: FC<RequirementRowProps> = ({
                 size="sm"
                 disabled={!value.trim() || save.isPending}
               >
-                {save.isPending ? <Spinner className="size-3.5" /> : 'Add'}
+                {save.isPending ? (
+                  <>
+                    <Spinner className="size-3.5" />
+                    Saving…
+                  </>
+                ) : (
+                  'Add'
+                )}
               </Button>
             </form>
           ) : (

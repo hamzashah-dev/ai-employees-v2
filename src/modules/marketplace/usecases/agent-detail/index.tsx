@@ -18,6 +18,7 @@ import { Spinner } from '@/modules/core/components/spinner'
 import { ROUTES } from '@/modules/roster/constants'
 import { AVAILABLE_CATALOG, type CatalogAgent } from '../../constants/catalog'
 import type { Connector } from '../../constants/connectors'
+import { packSource } from '../../hooks/use-install-agent'
 import { RequirementRow } from './components/requirement-row'
 import { useAgentDetail } from './hooks/use-agent-detail'
 
@@ -77,31 +78,50 @@ const AgentDetailPanel: FC<{ agent: CatalogAgent }> = ({ agent }) => {
         </Button>
       )}
 
-      <WithTooltip
-        content={PREVIEW_TOOLTIP}
-        size="sm"
-        showArrow={false}
-        className="inline-flex"
-        tooltipContentProps={{
-          side: 'top',
-          sideOffset: 6,
-          className: 'max-w-64',
-        }}
-      >
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled
-          aria-label="Preview a run — not available in this build"
-        >
-          <PlayIcon />
-          Preview a run
-        </Button>
-      </WithTooltip>
+      {isHiring && (
+        // D17's in-progress state names the real pack path rather than a generic
+        // spinner caption — `installProfile` really does resolve it from here
+        // (`use-install-agent`), so this is a true statement about what is
+        // happening, not decoration.
+        <p className="ml-auto text-label-sm text-tertiary">
+          Installing the pack from <span className="font-robotoMono">{packSource(agent.id)}</span>
+        </p>
+      )}
 
-      <p className="ml-auto text-label-sm text-tertiary">
-        {agent.runs.toLocaleString()} runs · {agent.installs.toLocaleString()} installs
-      </p>
+      {/*
+        D19 (a fresh hire failure) drops Preview and the run stats down to just
+        the retry and the error line — there is nothing to preview or count for
+        a profile that was never created.
+      */}
+      {!isHiring && !hireError && (
+        <>
+          <WithTooltip
+            content={PREVIEW_TOOLTIP}
+            size="sm"
+            showArrow={false}
+            className="inline-flex"
+            tooltipContentProps={{
+              side: 'top',
+              sideOffset: 6,
+              className: 'max-w-64',
+            }}
+          >
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled
+              aria-label="Preview a run — not available in this build"
+            >
+              <PlayIcon />
+              Preview a run
+            </Button>
+          </WithTooltip>
+
+          <p className="ml-auto text-label-sm text-tertiary">
+            {agent.runs.toLocaleString()} runs · {agent.installs.toLocaleString()} installs
+          </p>
+        </>
+      )}
 
       {hireError && (
         <p role="alert" className="w-full text-label-sm text-critical">
@@ -123,6 +143,11 @@ const AgentDetailPanel: FC<{ agent: CatalogAgent }> = ({ agent }) => {
             <Badge variant="neutral-strong" size="md" className="rounded-full">
               {agent.category}
             </Badge>
+            {employed && (
+              <Badge variant="success" size="md" className="rounded-full">
+                On your roster
+              </Badge>
+            )}
           </div>
           <DialogDescription className="text-body-md text-secondary">
             {agent.tagline}

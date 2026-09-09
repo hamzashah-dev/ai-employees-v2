@@ -6,8 +6,12 @@ import type { CatalogAgent } from '../../constants/catalog'
  * Where the backend finds an agent's pack — a path, not a URL, resolved relative
  * to the cloud-computer checkout that serves `/api/*`. Every id in
  * `AVAILABLE_AGENT_IDS` has a directory there.
+ *
+ * Exported because D17's in-progress footer names this path while a hire is
+ * in flight — it is real, so it is worth saying rather than falling back to a
+ * generic "Installing…".
  */
-const packSource = (id: string): string => `agents/${id}`
+export const packSource = (id: string): string => `agents/${id}`
 
 /**
  * Hire an agent by installing its distribution pack.

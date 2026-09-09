@@ -25,6 +25,7 @@ import { useGroupPersistence } from '@/modules/core/hooks/use-group-persistence'
 import { useHermesConnection } from '@/modules/core/hooks/use-hermes'
 import { useChatStore } from '@/modules/core/stores/chat-store'
 import { useGroupCreateStore } from '@/modules/core/stores/group-create-store'
+import { useWorkspaceGalleryStore } from '@/modules/core/stores/workspace-gallery-store'
 import { isAgentBrowsing } from '@/modules/panel/hooks/use-browser-view'
 import { ROUTES } from '@/modules/roster/constants'
 
@@ -63,6 +64,23 @@ const NewGroupFlow = lazy(() =>
 )
 const SettingsView = lazy(() =>
   import('@/modules/settings').then((m) => ({ default: m.SettingsView })),
+)
+const EmployeeSearchModal = lazy(() =>
+  import('@/modules/search').then((m) => ({ default: m.EmployeeSearchModal })),
+)
+const RoutinesView = lazy(() =>
+  import('@/modules/routines').then((m) => ({ default: m.RoutinesView })),
+)
+const SessionsListView = lazy(() =>
+  import('@/modules/sessions').then((m) => ({ default: m.SessionsListView })),
+)
+const SessionDetailView = lazy(() =>
+  import('@/modules/sessions/usecases/session').then((m) => ({
+    default: m.SessionDetailView,
+  })),
+)
+const WorkspaceMediaDialog = lazy(() =>
+  import('@/modules/workspace').then((m) => ({ default: m.WorkspaceMediaDialog })),
 )
 
 interface PageProps {
@@ -249,6 +267,37 @@ const Shell: FC = () => {
                 element={<EmployeeRoute onOpenSidebar={openSidebar} />}
               />
 
+              {/*
+                §s34/s35 — one employee's background Hermes sessions. A route rather than a
+                panel dialog like the workspace gallery: a session's own transcript is a page
+                worth linking to, not a glance.
+              */}
+              <Route
+                path={`${ROUTES.EMPLOYEES}/:profile/sessions`}
+                element={
+                  <Page title="Sessions" onOpenSidebar={openSidebar}>
+                    <SessionsListView />
+                  </Page>
+                }
+              />
+              <Route
+                path={`${ROUTES.EMPLOYEES}/:profile/sessions/:sessionId`}
+                element={
+                  <Page title="Sessions" onOpenSidebar={openSidebar}>
+                    <SessionDetailView />
+                  </Page>
+                }
+              />
+
+              <Route
+                path={ROUTES.ROUTINES}
+                element={
+                  <Page title="Routines" onOpenSidebar={openSidebar}>
+                    <RoutinesView />
+                  </Page>
+                }
+              />
+
               <Route
                 path={ROUTES.GROUPS}
                 element={
@@ -301,6 +350,20 @@ const Shell: FC = () => {
       <Suspense fallback={null}>
         <NewGroupDialog />
       </Suspense>
+
+      {/*
+        D10 — mounted once for the same reason: the sidebar's `Search` row and the
+        Cmd+K shortcut are on screen on every route, and `modules/search` may not
+        reach into the shell to render itself.
+      */}
+      <Suspense fallback={null}>
+        <EmployeeSearchModal />
+      </Suspense>
+
+      {/* §s23 — the panel's Workspace section opens this via `workspace-gallery-store`. */}
+      <Suspense fallback={null}>
+        <WorkspaceGalleryDialog />
+      </Suspense>
     </div>
   )
 }
@@ -331,24 +394,35 @@ const NewGroupDialog: FC = () => {
 }
 
 /**
+ * §s23 — the workspace media gallery, wherever the panel asked for it.
+ *
+ * `profile` doubles as the open flag on `workspace-gallery-store`, same shape as
+ * `EmployeeRoute`'s panel state above.
+ */
+const WorkspaceGalleryDialog: FC = () => {
+  const profile = useWorkspaceGalleryStore((state) => state.profile)
+  const displayName = useWorkspaceGalleryStore((state) => state.displayName)
+  const close = useWorkspaceGalleryStore((state) => state.close)
+
+  if (!profile) return null
+
+  return (
+    <WorkspaceMediaDialog
+      open
+      onClose={close}
+      profile={profile}
+      displayName={displayName}
+    />
+  )
+}
+
+/**
  * Destinations the canvas's nav points at that this build does not serve.
  *
  * Each says which it is — designed-but-unbuilt here, or owned by the surrounding product —
  * because "not built" and "not this app's job" are different answers to the same click.
  */
 const UNBUILT_ROUTES: { path: string; title: string; detail: string }[] = [
-  {
-    path: ROUTES.SEARCH,
-    title: 'Search',
-    detail:
-      'Searching across every employee’s threads is designed but not built yet. Hermes exposes /api/sessions/search, so it is a small addition.',
-  },
-  {
-    path: ROUTES.ROUTINES,
-    title: 'Routines',
-    detail:
-      'A combined view of every employee’s routines is not built yet. Each employee’s own routines are in their panel — open a thread and use the screen button.',
-  },
   {
     path: ROUTES.SEARCH_CHATS,
     title: 'Search Chats',

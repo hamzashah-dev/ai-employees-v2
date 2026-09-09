@@ -7,6 +7,7 @@ import { useStickToBottom } from '../../hooks/use-stick-to-bottom'
 import { ApprovalCard } from '../approval-card'
 import { EmptyState } from '../empty-state'
 import { EmployeeMessage } from '../employee-message'
+import { HireStrip } from '../hire-strip'
 import { JumpToLatest } from '../jump-to-latest'
 import { MessageBubble } from '../message-bubble'
 import { MessageError } from '../message-error'
@@ -66,6 +67,13 @@ export const MessageList: FC<MessageListProps> = ({
           aria-label={`Conversation with ${displayName}`}
           className={cn('mx-auto flex flex-col gap-5 pt-6', columnClassName)}
         >
+          {/*
+            D19's completion beat: router state set by the marketplace's hire flow
+            (`navigate(to, { state: { hired } })`). Reads its own location, so it
+            renders nothing on a thread the user simply navigated to.
+          */}
+          <HireStrip />
+
           {messages.length === 0 && !error ? (
             <EmptyState profile={profile} displayName={displayName} />
           ) : (

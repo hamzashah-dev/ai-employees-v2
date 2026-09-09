@@ -1,4 +1,5 @@
 import type { FC } from 'react'
+import { useSidebarCollapsed } from '../../contexts/sidebar-collapsed'
 import { useTeamItems } from '../../hooks/use-team-items'
 import { GroupRow } from '../group-row'
 import { RosterEmpty } from '../roster-empty'
@@ -14,13 +15,18 @@ import { RosterSkeleton } from '../roster-skeleton'
  * sections — see `use-team-items`. The empty state is still keyed on employees:
  * a roster of zero people cannot have a room in it, so "no employees" is always
  * the more useful thing to say.
+ *
+ * Collapsed, loading/error/empty render nothing rather than their full-sentence
+ * copy squeezed into a 32px column — `NavRow`'s rows above still say Employees is
+ * there, and the discs that follow speak for themselves once there is a team.
  */
 export const RosterList: FC = () => {
   const { items, isLoading, errorMessage, retry } = useTeamItems()
+  const isCollapsed = useSidebarCollapsed()
 
-  if (isLoading) return <RosterSkeleton />
-  if (errorMessage) return <RosterError message={errorMessage} onRetry={retry} />
-  if (items.length === 0) return <RosterEmpty />
+  if (isLoading) return isCollapsed ? null : <RosterSkeleton />
+  if (errorMessage) return isCollapsed ? null : <RosterError message={errorMessage} onRetry={retry} />
+  if (items.length === 0) return isCollapsed ? null : <RosterEmpty />
 
   return (
     <ul aria-label="Team" className="flex flex-col gap-0.5">

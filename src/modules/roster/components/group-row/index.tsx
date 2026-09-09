@@ -2,10 +2,12 @@ import type { FC } from 'react'
 import { NavLink } from 'react-router-dom'
 import { AlertTriangleIcon } from '@repo/icons/alert-triangle'
 import { cn } from '@repo/ui/cn'
+import { WithTooltip } from '@repo/ui/tooltip'
 import { GroupClusterAvatar } from '@/modules/core/components/group-cluster-avatar'
 import { Spinner } from '@/modules/core/components/spinner'
 import type { GroupRow as GroupRowData } from '@/modules/core/utils/group-row'
 import { formatRosterTime } from '@/modules/core/utils/time'
+import { useSidebarCollapsed } from '../../contexts/sidebar-collapsed'
 import { useGroupRowState } from './hooks/use-group-row'
 
 interface GroupRowProps {
@@ -30,6 +32,48 @@ interface GroupRowProps {
 export const GroupRow: FC<GroupRowProps> = ({ row }) => {
   const { to, isWorking, needsUser, isUnread } = useGroupRowState(row)
   const timeLabel = formatRosterTime(row.activityMs)
+  const isCollapsed = useSidebarCollapsed()
+
+  // Same collapse as `RosterRow`: the cluster alone, name in a tooltip.
+  if (isCollapsed) {
+    return (
+      <li>
+        <WithTooltip
+          content={row.name}
+          showArrow={false}
+          tooltipContentProps={{
+            side: 'right',
+            sideOffset: 8,
+            className:
+              'rounded-xl border border-primary bg-surface-variant text-label-sm text-primary shadow-md',
+          }}
+        >
+          <NavLink
+            to={to}
+            aria-label={row.name}
+            className={({ isActive }) =>
+              cn(
+                'relative mx-auto flex size-8 items-center justify-center rounded-xl transition-all duration-200 ease-linear hover:bg-fill-variant-hover',
+                { 'bg-fill-variant-active': isActive },
+              )
+            }
+          >
+            <GroupClusterAvatar members={row.members} size="xs" />
+            {needsUser && (
+              <AlertTriangleIcon className="absolute -right-0.5 -bottom-0.5 size-3.5 shrink-0 text-warning" />
+            )}
+            {!needsUser && isUnread && (
+              <span
+                role="img"
+                aria-label="Unread"
+                className="absolute right-0 bottom-0 size-1.5 shrink-0 rounded-full bg-primary-30"
+              />
+            )}
+          </NavLink>
+        </WithTooltip>
+      </li>
+    )
+  }
 
   return (
     <li>

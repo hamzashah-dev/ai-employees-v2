@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FC } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import { MonitorIcon } from '@repo/icons/monitor'
 import { GroupClusterAvatar } from '@/modules/core/components/group-cluster-avatar'
 import { ROUTES } from '@/modules/roster/constants'
 import { AddMemberDialog } from '../../components/add-member-dialog'
@@ -8,6 +9,7 @@ import { GroupComposer } from '../../components/group-composer'
 import { GroupMessageList } from '../../components/group-message-list'
 import { GroupMembersPanel } from '../../components/group-members-panel'
 import { RenameGroupDialog } from '../../components/rename-group-dialog'
+import { RoomPanel } from '../../components/room-panel'
 import { useGroupCandidates } from '../../hooks/use-group-candidates'
 import { useGroupRoom } from '../../hooks/use-group-room'
 
@@ -35,54 +37,79 @@ export const GroupRoomView: FC = () => {
 
   const [isAdding, setIsAdding] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
+  const [isPanelOpen, setIsPanelOpen] = useState(false)
 
   // A deleted room, or a link to one this browser has never held. Rooms are
   // device-local, so a shared URL lands here rather than on someone else's room.
   if (!roomId || !room.exists) return <Navigate to={ROUTES.GROUPS} replace />
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex h-12 shrink-0 items-center justify-between px-4">
-        <span className="flex min-w-0 items-center gap-2 rounded-xl px-1.5 py-1">
-          <GroupClusterAvatar members={room.members} size="xs" />
-          <span className="flex min-w-0 flex-col">
-            <span className="truncate text-label-md font-medium text-primary">{room.name}</span>
-            <span className="text-label-xs text-tertiary">
-              {room.members.length} members
+    <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 flex-col">
+        <header className="flex h-12 shrink-0 items-center justify-between px-4">
+          <span className="flex min-w-0 items-center gap-2 rounded-xl px-1.5 py-1">
+            <GroupClusterAvatar members={room.members} size="xs" />
+            <span className="flex min-w-0 flex-col">
+              <span className="truncate text-label-md font-medium text-primary">{room.name}</span>
+              <span className="text-label-xs text-tertiary">
+                {room.members.length} members
+              </span>
             </span>
           </span>
-        </span>
 
-        <GroupMembersPanel
+          <span className="flex items-center gap-3">
+            {/* §1e's panel toggle. Deliverables only — see RoomPanel for why. */}
+            <button
+              type="button"
+              aria-label={isPanelOpen ? 'Hide room panel' : 'Show room panel'}
+              aria-pressed={isPanelOpen}
+              onClick={() => setIsPanelOpen((open) => !open)}
+              className="flex size-8 items-center justify-center rounded-full text-secondary hover:bg-fill-variant-hover data-[open=true]:bg-fill-variant-active data-[open=true]:text-primary"
+              data-open={isPanelOpen}
+            >
+              <MonitorIcon className="size-4" />
+            </button>
+
+            <GroupMembersPanel
+              members={room.members}
+              onAddMember={() => setIsAdding(true)}
+              onRemoveMember={room.removeMember}
+              onRename={() => setIsRenaming(true)}
+              onDelete={() => {
+                room.remove()
+                navigate(ROUTES.GROUPS, { replace: true })
+              }}
+            />
+          </span>
+        </header>
+
+        {room.messages.length === 0 && !room.speaking ? (
+          <EmptyRoom members={room.members} />
+        ) : (
+          <GroupMessageList
+            messages={room.messages}
+            viewer="You"
+            membersTyping={room.speaking ? [room.speaking] : []}
+          />
+        )}
+
+        <GroupComposer
+          value={room.draft}
+          onChange={room.setDraft}
+          onSubmit={room.send}
+          disabled={room.running}
           members={room.members}
-          onAddMember={() => setIsAdding(true)}
-          onRemoveMember={room.removeMember}
-          onRename={() => setIsRenaming(true)}
-          onDelete={() => {
-            room.remove()
-            navigate(ROUTES.GROUPS, { replace: true })
-          }}
+          placeholder="Message the group"
         />
-      </header>
+      </div>
 
-      {room.messages.length === 0 && !room.speaking ? (
-        <EmptyRoom members={room.members} />
-      ) : (
-        <GroupMessageList
-          messages={room.messages}
-          viewer="You"
-          membersTyping={room.speaking ? [room.speaking] : []}
+      {isPanelOpen && (
+        <RoomPanel
+          members={room.members}
+          createdAt={room.createdAt}
+          onClose={() => setIsPanelOpen(false)}
         />
       )}
-
-      <GroupComposer
-        value={room.draft}
-        onChange={room.setDraft}
-        onSubmit={room.send}
-        disabled={room.running}
-        members={room.members}
-        placeholder="Message the group"
-      />
 
       <AddMemberDialog
         open={isAdding}

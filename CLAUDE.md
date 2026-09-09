@@ -262,6 +262,11 @@ There are two design sources, both canvases: the original five artboards, and
 `~/Downloads/Bot Group Chats.html` (screens 1a–1g) for group chats. Their measurements are
 the spec for these screens, but note two things that generalise:
 
+The Figma file `2hqn35W1yWO01Aov7rWB9h` ("AI Employees — All Screens") is newer and more
+complete than either canvas above — where it disagrees with `Bot Group Chats.html` or the
+original five artboards, the Figma file wins; treat it as the primary source going forward,
+and keep this historical note for context on screens it has not yet superseded.
+
 1. **Where the canvas and imagine-computer-web disagree, the split is:** the monorepo owns
    tokens, components, mechanisms and accessibility; the canvas owns per-surface pixels
    (padding, radius, size, which token fills which slot). Where the canvas is *silent* — every
