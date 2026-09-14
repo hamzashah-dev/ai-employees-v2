@@ -8,6 +8,8 @@
  * it later is an edit here rather than a hunt through the codebase.
  */
 
+import { isHermesTarget, type HermesTarget } from './target'
+
 declare global {
   interface Window {
     __COMPUTER_SESSION_TOKEN__?: string
@@ -27,6 +29,20 @@ declare global {
  * app itself.
  */
 export const API_BASE = ''
+
+/**
+ * Which Hermes this bundle was built to talk to, as declared in `.env`.
+ *
+ * Vite inlines `import.meta.env.VITE_*` at build time, so this is a constant in
+ * the output rather than something the running app can be talked out of. It is
+ * a *label* only: `vite.config.ts` owns checking it against the URL actually
+ * being proxied, because that check needs the URL, which the browser never sees.
+ *
+ * The `local` fallback is for the test environment, which has no Vite `define`.
+ */
+export const HERMES_TARGET: HermesTarget = isHermesTarget(import.meta.env.VITE_HERMES_TARGET)
+  ? import.meta.env.VITE_HERMES_TARGET
+  : 'local'
 
 export function getSessionToken(): string | undefined {
   if (typeof window === 'undefined') return undefined

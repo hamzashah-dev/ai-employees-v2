@@ -45,16 +45,45 @@ The app is same-origin only: Hermes registers CORS *before* auth, so a cross-ori
 call 401s at the preflight. Vite proxies instead, and scrapes the dashboard's per-boot session
 token out of its HTML at each page load.
 
-`vite.config.ts` deliberately has **no default backend port**. The documented 9119 is routinely
-held by a *different* checkout's install, and talking to the wrong one fails silently — you get
-somebody else's roster rather than an error. Point it explicitly:
+Two backends are in routine use and a running UI cannot tell them apart — roster, profiles and
+chrome render identically — so a dev server aimed at the wrong one looks like a working app
+holding somebody else's data. Configure both in `.env` (gitignored; `.env.example` documents
+the shape):
+
+```bash
+# the shared cloud VM — Hermes sits behind Caddy under /dashboard, and the bare
+# host serves an empty 200, so the prefix is load-bearing
+VITE_HERMES_URL=https://vm-8ky5zqjqcj3t.imaginecloud.app/dashboard
+VITE_HERMES_TARGET=vm
+
+# or a local dashboard
+VITE_HERMES_URL=http://127.0.0.1:9121
+VITE_HERMES_TARGET=local
+```
+
+`VITE_HERMES_TARGET` is the label the app reads back as `HERMES_TARGET` from
+`modules/core/services/hermes/config.ts`. It is **cross-checked, not trusted**: `vite.config.ts`
+derives the target from the URL and refuses to start when the two disagree, because a label that
+can drift from the thing it names reads as confirmation while being wrong. Omit it and it is
+derived. Either way the resolved target is printed at startup:
+
+```
+[hermes] target=vm (cloud VM) → https://vm-8ky5zqjqcj3t.imaginecloud.app/dashboard
+```
+
+**`vite.config.ts` must read env through `loadEnv`, never `process.env`.** Vite exposes `.env`
+to *client* code only; the config file runs before that and sees nothing but the real shell
+environment, so a `VITE_HERMES_URL` written into `.env` was silently ignored and the app fell
+back to loopback. A shell variable still wins over `.env` — `loadEnv` layers `process.env` on top:
 
 ```bash
 VITE_HERMES_URL=http://127.0.0.1:9119 npm run dev
 ```
 
-Confirm which install you are on with `curl -s http://127.0.0.1:9119/api/status | jq .computer_home`.
-Set `VITE_HERMES_COMPUTER_HOME` to turn a mismatch into a startup failure instead of a silent one.
+Confirm which install you are on with `curl -s <backend>/api/status | jq .computer_home`.
+Set `VITE_HERMES_COMPUTER_HOME` to turn a mismatch into a startup failure instead of a silent
+one — bearing in mind it also aborts when the backend is merely unreachable, which is a worse
+trade for a remote backend than a local one.
 
 ---
 
