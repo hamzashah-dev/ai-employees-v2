@@ -8,23 +8,23 @@ interface ShapePickerProps {
   shape: MascotShape
   /** The employee's current hue, so a choice previews as itself rather than as grey. */
   color: `#${string}`
+  /** The employee's seed, so a choice previews as *this* character in the other shape. */
+  seed: string
   onSelect: (shape: MascotShape) => void
 }
 
 /**
- * The eight silhouettes, drawn flat and in the employee's own colour.
+ * The nine silhouettes, drawn in the employee's own colour and from the employee's own seed.
  *
  * This is the whole of "change the avatar": there is no image upload behind it and there
  * could not be one — Hermes stores nothing per profile but text, and an avatar kept only in
- * this browser's localStorage as a data URL would be a large thing to lose silently. Six
+ * this browser's localStorage as a data URL would be a large thing to lose silently. Nine
  * characters that survive a reload beat a photo that does not.
  *
  * Each option is the same `BotMark` the roster and the hero draw, at 24px — there is one
- * renderer now, so a preview cannot disagree with the thing it previews. It is drawn without
- * a prop on purpose: this control picks a silhouette, and the job glyph would be the loudest
- * thing in a 24px box while being the one part the control does not change.
+ * renderer now, so a preview cannot disagree with the thing it previews.
  */
-export const ShapePicker: FC<ShapePickerProps> = ({ shape, color, onSelect }) => (
+export const ShapePicker: FC<ShapePickerProps> = ({ shape, color, seed, onSelect }) => (
   <div
     role="radiogroup"
     aria-label="Avatar shape"
@@ -43,7 +43,14 @@ export const ShapePicker: FC<ShapePickerProps> = ({ shape, color, onSelect }) =>
           { 'border-secondary bg-fill-variant-active': option === shape },
         )}
       >
-        <BotMark shape={option} color={color} size={24} label={null} className="size-6" />
+        <BotMark
+          shape={option}
+          color={color}
+          seed={seed}
+          size={24}
+          label={null}
+          className="size-6"
+        />
       </button>
     ))}
   </div>

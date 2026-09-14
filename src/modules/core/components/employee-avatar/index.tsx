@@ -7,9 +7,9 @@ import { BotMark } from '../bot-avatar'
  * An employee, wherever they appear in a list, thread, card or header.
  *
  * The single entry point for drawing a *particular* profile: it resolves that profile's
- * silhouette, hue and job prop through `useEmployeeIdentity` and hands them to `BotMark`.
- * Every surface in the app goes through here, which is what keeps one employee looking like
- * the same employee in the sidebar, the thread header and the group composer.
+ * silhouette, hue and seed through `useEmployeeIdentity` and hands them to `BotMark`. Every
+ * surface in the app goes through here, which is what keeps one employee looking like the
+ * same employee in the sidebar, the thread header and the group composer.
  *
  * It used to be a baked sprite because the avatar was a 3D render and a WebGL context per
  * roster row would exhaust the browser's budget. `BotMark` is flat SVG, so there is no context
@@ -71,13 +71,13 @@ export const EmployeeAvatar: FC<EmployeeAvatarProps> = ({
   busy = false,
   className,
 }) => {
-  const { color, shape, prop } = useEmployeeIdentity(profile)
+  const { color, shape, seed } = useEmployeeIdentity(profile)
 
   return (
     <BotMark
       shape={shape}
       color={color}
-      prop={prop}
+      seed={seed}
       size={size}
       busy={busy}
       label={`${profile} avatar`}

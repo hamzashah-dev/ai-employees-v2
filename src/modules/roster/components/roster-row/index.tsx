@@ -3,8 +3,8 @@ import { NavLink } from 'react-router-dom'
 import { AlertTriangleIcon } from '@repo/icons/alert-triangle'
 import { cn } from '@repo/ui/cn'
 import { WithTooltip } from '@repo/ui/tooltip'
-import { EmployeeAvatar } from '@/modules/core/components/employee-avatar'
 import { Spinner } from '@/modules/core/components/spinner'
+import { SparkleEmployeeAvatar } from '@/modules/core/components/sparkle-employee-avatar'
 import { useSidebarCollapsed } from '../../contexts/sidebar-collapsed'
 import type { RosterEntry } from '../../types'
 import { useRosterRow } from './hooks/use-roster-row'
@@ -53,16 +53,32 @@ export const RosterRow: FC<RosterRowProps> = ({ entry }) => {
               )
             }
           >
-            <EmployeeAvatar profile={entry.profile} size={28} busy={isWorking} />
-            {needsUser && (
-              <AlertTriangleIcon className="absolute -right-0.5 -bottom-0.5 size-3.5 shrink-0 text-warning" />
-            )}
-            {!needsUser && isUnread && (
+            <SparkleEmployeeAvatar profile={entry.profile} size={28} />
+            {/*
+              `SparkleMark` has no working face — the design's three variants carry no busy
+              state — so the collapsed rail needs its own honest signal instead of losing the
+              one the capped avatar used to carry. A real `Spinner`, not a fabricated avatar
+              expression, and first in the corner's priority since it is the most transient of
+              the three.
+            */}
+            {isWorking ? (
               <span
                 role="img"
-                aria-label="Unread"
-                className="absolute right-0 bottom-0 size-1.5 shrink-0 rounded-full bg-primary-30"
-              />
+                aria-label={`${entry.displayName} is working`}
+                className="absolute -right-0.5 -bottom-0.5 flex size-3.5 shrink-0 items-center justify-center rounded-full bg-fill-elevated"
+              >
+                <Spinner className="size-2.5 text-secondary" />
+              </span>
+            ) : needsUser ? (
+              <AlertTriangleIcon className="absolute -right-0.5 -bottom-0.5 size-3.5 shrink-0 text-warning" />
+            ) : (
+              isUnread && (
+                <span
+                  role="img"
+                  aria-label="Unread"
+                  className="absolute right-0 bottom-0 size-1.5 shrink-0 rounded-full bg-primary-30"
+                />
+              )
             )}
           </NavLink>
         </WithTooltip>
@@ -81,7 +97,7 @@ export const RosterRow: FC<RosterRowProps> = ({ entry }) => {
           )
         }
       >
-        <EmployeeAvatar profile={entry.profile} />
+        <SparkleEmployeeAvatar profile={entry.profile} />
 
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="flex items-center justify-between gap-2">

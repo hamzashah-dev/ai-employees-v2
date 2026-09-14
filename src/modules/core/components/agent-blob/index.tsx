@@ -28,13 +28,13 @@ interface AgentBlobProps {
 }
 
 export const AgentBlob: FC<AgentBlobProps> = ({ profile, size = 64, className }) => {
-  const { color, shape, prop } = useEmployeeIdentity(profile)
+  const { color, shape, seed } = useEmployeeIdentity(profile)
 
   return (
     <BotMark
       shape={shape}
       color={color}
-      prop={prop}
+      seed={seed}
       size={size}
       label={`${profile} avatar`}
       className={cn('block', className)}

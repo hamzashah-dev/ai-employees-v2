@@ -3,6 +3,10 @@ import Markdown from 'react-markdown'
 import type { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@repo/ui/cn'
+import { LocalMediaImage } from './components/local-media-image'
+import { MediaChip } from './components/media-chip'
+import { isLocalFilePath } from './utils/local-file'
+import { remarkLocalMedia } from './utils/remark-local-media'
 
 /**
  * Markdown for employee replies.
@@ -11,6 +15,11 @@ import { cn } from '@repo/ui/cn'
  * snippet, not a document. Headings step down in size but never shout, and the
  * only weights available are 400 and 500 — so `strong` is overridden, since the
  * browser default of 700 is not in this type system.
+ *
+ * One transform beyond GFM: `remarkLocalMedia` turns the absolute paths a reply mentions
+ * into `image` and `link` nodes, and the two overrides below are where a path on the
+ * gateway's disk becomes something a browser can fetch. Remote URLs pass through
+ * untouched — the model links plenty of pages, and only a local path needs translating.
  */
 
 const components: Components = {
@@ -41,16 +50,31 @@ const components: Components = {
   strong: ({ children }) => <strong className="font-medium">{children}</strong>,
   em: ({ children }) => <em className="italic">{children}</em>,
   del: ({ children }) => <del className="line-through">{children}</del>,
-  a: ({ href, children }) => (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer noopener"
-      className="text-brand underline underline-offset-2"
-    >
-      {children}
-    </a>
-  ),
+  a: ({ href, children }) =>
+    href && isLocalFilePath(href) ? (
+      <MediaChip path={href} />
+    ) : (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer noopener"
+        className="text-brand underline underline-offset-2"
+      >
+        {children}
+      </a>
+    ),
+  img: ({ src, alt }) => {
+    const url = typeof src === 'string' ? src : ''
+    if (isLocalFilePath(url)) return <LocalMediaImage path={url} alt={alt} />
+    return (
+      <img
+        src={url}
+        alt={alt ?? ''}
+        loading="lazy"
+        className="my-2 max-h-[360px] max-w-full rounded-xl"
+      />
+    )
+  },
   code: ({ className, children }) => (
     <code
       className={cn(
@@ -94,7 +118,7 @@ interface MarkdownBodyProps {
 
 export const MarkdownBody: FC<MarkdownBodyProps> = ({ text, className }) => (
   <div className={cn('text-body-md text-primary', className)}>
-    <Markdown remarkPlugins={[remarkGfm]} components={components}>
+    <Markdown remarkPlugins={[remarkGfm, remarkLocalMedia]} components={components}>
       {text}
     </Markdown>
   </div>

@@ -126,9 +126,10 @@
  * fifty timers, which is the sort of thing that is invisible until the tab has been open an
  * hour. One declarative keyframe compositor-side costs nothing per additional avatar.
  *
- * `transform-origin` is in the body's own 34-unit user space, not pixels: the eye group rides
- * `BODY_TRANSFORM`, so 17,17 is its centre whatever the avatar is rendered at. Scaling from
- * the default 50% of the element's own bounding box would make the lids close off-centre.
+ * `transform-box: fill-box` makes the origin the eye group's *own* bounding box rather than
+ * the SVG viewport's. The eyes are laid out by blobatar per seed and ride a scene transform,
+ * so there is no fixed coordinate to name; the lids have to close about wherever this
+ * character's eyes happen to be.
  *
  * The lid shuts for a sliver of the cycle rather than reaching zero — a true 0 renders as a
  * one-frame disappearance instead of a blink.
@@ -145,7 +146,8 @@
 }
 
 .bot-mark-eyes {
-  transform-origin: 17px 17px;
+  transform-box: fill-box;
+  transform-origin: center;
   animation: bot-mark-blink 5.4s infinite;
 }
 

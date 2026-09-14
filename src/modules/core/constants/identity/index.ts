@@ -16,13 +16,13 @@ import type { BotColorName, BotShape, HexColor } from '../../components/bot-avat
  * problem is gone; what remains is a re-export so that a store, a picker or a hook can read
  * the vocabulary without importing a component.
  *
- * **Eight hues and six shapes**, down from eleven and eight. Flat fills have only chroma to
- * work with where a lit material had a light rig, so the hues run hotter and the two
- * near-neutrals are gone; the three silhouettes that were tuned around 3D eye anchors read as
- * mush drawn flat and went with them.
+ * **Eight hues and nine shapes.** The head is drawn by blobatar now, and the product uses
+ * nine of its ten silhouettes, so a roster is one species with real variety underneath. The
+ * hues are seeds: `BotMark` hands each to blobatar's palette and draws the face and eyes in
+ * the tones it returns.
  *
  * The hues are raw hexes rather than `rgb(var(--…))` tokens, and that is not the banned thing:
- * they never reach a `className`. They are an SVG `fill`. There is also no token to borrow —
+ * they never reach a `className`. They seed an SVG `fill`. There is also no token to borrow —
  * the ramps describe surfaces and text, and an avatar hue is decorative and carries no
  * semantic role. Nothing may infer state from an avatar's colour.
  */
@@ -52,7 +52,7 @@ export const IDENTITY_COLOR_BY_NAME: Record<BotColorName, HexColor> = Object.fro
 export const DEFAULT_IDENTITY_COLOR: HexColor = BOT_COLOR_BY_NAME[DEFAULT_BOT_COLOR].hex
 
 /**
- * The six silhouettes.
+ * The nine silhouettes.
  *
  * Kept under the `Mascot*` names the rest of the app already calls them by — the bot *is* the
  * mascot, and renaming every call site would be churn for a synonym.
@@ -67,7 +67,7 @@ export const MASCOT_SHAPE_NAMES: Record<MascotShape, string> = BOT_SHAPE_LABELS
  * Is this one of the shapes we still draw?
  *
  * Overrides are persisted in `localStorage`, so a browser that saw an earlier vocabulary can
- * hand back a `cone`, `pill` or `drop` that no longer exists. Falling through to the
+ * hand back a `hex`, `cloud` or `arch` that no longer exists. Falling through to the
  * name-derived shape is better than rendering nothing, and better than silently rewriting the
  * user's stored choice.
  */

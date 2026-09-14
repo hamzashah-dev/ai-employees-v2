@@ -70,7 +70,7 @@ const AppearanceForm: FC<{ profile: string; onDone: () => void }> = ({
         <BotMark
           shape={editor.shape}
           color={editor.color}
-          prop={editor.prop}
+          seed={editor.seed}
           size={72}
           label={`${profile} avatar`}
           className="shrink-0 drop-shadow-[0_9px_9px_rgba(0,0,0,0.6)]"

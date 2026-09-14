@@ -1,7 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { MASCOT_SHAPES } from '../../constants/identity'
-import { AGENT_PROP } from '../../constants/avatar-props/assignments'
 import { getIdentity } from '../../utils/identity'
 import { AgentBlob } from '../agent-blob'
 import { EmployeeAvatar } from '.'
@@ -20,9 +19,16 @@ import { EmployeeAvatar } from '.'
 const partOf = (container: HTMLElement, part: string) =>
   container.querySelector(`[data-part="${part}"]`)
 
-/** Geometry only. Two mounts of the same avatar must agree on this. */
+/**
+ * Geometry only. Two mounts of the same avatar must agree on this.
+ *
+ * The body group holds one path for a round head and several marks for a capsule or a sun,
+ * so its markup is the silhouette. An earlier version read `innerHTML` off a *leaf* element,
+ * which is `''` — and `'' === ''` made every "same character" assertion pass whatever was
+ * drawn. The `|| null` keeps that from ever passing vacuously again.
+ */
 const silhouette = (container: HTMLElement): string | null =>
-  partOf(container, 'body')?.innerHTML ?? null
+  partOf(container, 'body')?.innerHTML || null
 
 const bodyHue = (container: HTMLElement): string | null =>
   partOf(container, 'body')?.getAttribute('fill') ?? null
@@ -40,23 +46,19 @@ describe('EmployeeAvatar', () => {
     },
   )
 
-  it('carries the same job prop onto both surfaces', () => {
-    // A catalogue agent's prop is the clearest thing about it. The shelf and the roster
-    // resolving different ones would be the same class of bug as a different silhouette.
-    const avatar = render(<EmployeeAvatar profile="bug-hunter" size={48} />)
-    const blob = render(<AgentBlob profile="bug-hunter" />)
-
-    const expected = AGENT_PROP['bug-hunter']
-    expect(partOf(avatar.container, 'prop')).toHaveAttribute('data-prop', expected)
-    expect(partOf(blob.container, 'prop')).toHaveAttribute('data-prop', expected)
-  })
-
-  it('wears no prop for a profile the catalogue has never heard of', () => {
-    // Hermes will happily report a profile someone made by hand. Guessing a job for it would
-    // be a claim we cannot support, so the honest answer is a bare mark.
+  it('draws a body for a profile the catalogue has never heard of', () => {
+    // Hermes will happily report a profile someone made by hand. It still gets a face.
     const { container } = render(<EmployeeAvatar profile="some-local-profile" size={48} />)
     expect(partOf(container, 'body')).toBeInTheDocument()
-    expect(partOf(container, 'prop')).toBeNull()
+  })
+
+  it('draws a different character for a different profile', () => {
+    // Two employees with the same shape and colour still have to be told apart, which is
+    // what seeding blobatar with the profile is for. Two identical faces would mean the seed
+    // was dropped on the way down.
+    const a = render(<EmployeeAvatar profile="alpha-agent" />)
+    const b = render(<EmployeeAvatar profile="beta-agent" />)
+    expect(silhouette(a.container)).not.toBe(silhouette(b.container))
   })
 
   it('is labelled for assistive technology', () => {

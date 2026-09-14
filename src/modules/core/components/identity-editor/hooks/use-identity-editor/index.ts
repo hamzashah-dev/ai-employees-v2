@@ -14,6 +14,8 @@ export interface UseIdentityEditorResult {
   prop: AvatarPropId | null
   /** The resolved hue, for previewing a shape choice in the employee's own colour. */
   color: `#${string}`
+  /** The blobatar seed, so the hero and the shape swatches draw *this* character. */
+  seed: string
   colorIndex: number
   /** The name being typed. Seeded from the stored override on mount. */
   draftName: string
@@ -46,7 +48,7 @@ export interface UseIdentityEditorResult {
  * a character at a time and writing every keystroke to localStorage would be silly.
  */
 export function useIdentityEditor(profile: string): UseIdentityEditorResult {
-  const { color, shape, prop } = useEmployeeIdentity(profile)
+  const { color, shape, prop, seed } = useEmployeeIdentity(profile)
   const displayName = useDisplayName(profile)
   const setOverride = useIdentityStore((state) => state.setOverride)
   const resetOverride = useIdentityStore((state) => state.resetOverride)
@@ -86,11 +88,9 @@ export function useIdentityEditor(profile: string): UseIdentityEditorResult {
     shape,
     prop,
     color,
+    seed,
     // The swatch ring follows the *resolved* colour, so an employee with no override still
-    // shows which of the eight the hash landed on rather than none of them. `indexOf` against
-    // the full palette is right even though an un-overridden colour is drawn from the
-    // prop-compatible subset: the subset is a filter of this list, not a reordering, so a hue
-    // found there has the same index here.
+    // shows which of the eight the hash landed on rather than none of them.
     colorIndex: IDENTITY_COLORS.indexOf(color),
     draftName,
     setDraftName,

@@ -1,41 +1,33 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { BotMark } from '.'
-import {
-  BOT_COLORS,
-  BOT_EYE_STYLES,
-  BOT_EYE_STYLE_LABELS,
-  BOT_SHAPES,
-  BOT_SHAPE_LABELS,
-  DEFAULT_BOT_EYE_STYLE,
-} from './constants'
-import { hueOf, hueSeparation, resolveBotColorHex } from './utils/color'
-import { GROUND_MIN_SIZE, PROP_MIN_SIZE } from './utils/geometry'
+import { BOT_COLORS, BOT_SHAPES, BOT_SHAPE_LABELS } from './constants'
+import { oklchHue, resolveBotColorHex, resolveBotPalette } from './utils/color'
+import { GROUND_MIN_SIZE } from './utils/geometry'
+import { layoutBlob } from './utils/blob'
 import {
   AVATAR_PROPS,
+  AVATAR_PROP_GLYPHS,
   AVATAR_PROP_IDS,
-  MIN_PROP_HUE_SEPARATION,
-  PROP_HUE,
   isAvatarPropId,
 } from '@/modules/core/constants/avatar-props'
 
 /**
- * What is worth testing here, now that there is no WebGL to stand in for.
+ * What is worth testing here.
  *
  * The renderer is a pure function of its props, so the valuable assertions are the ones that
  * catch a silent wrong answer rather than a crash: the **size tiers**, because a mark that
- * keeps its prop at 20px degrades into a smudge and nothing throws; the **vocabulary**, because
- * it is indexed by a hash and a reorder repaints the whole product; and the **prop registry**,
- * because a missing hue entry would quietly disable the collision solver for that glyph.
- *
- * Assertions about the prop go through `data-prop` rather than the injected markup. jsdom
- * parses SVG `innerHTML` into the HTML namespace, so querying the vendored paths would be
- * asserting on nodes the browser would never produce.
+ * keeps its ground shadow at 20px degrades into a smudge and nothing throws; the
+ * **vocabulary**, because it is indexed by a hash and a reorder repaints the whole product;
+ * and the **blobatar contract**, because the head is drawn from an underscore-exported layout
+ * and a dependency bump that changed its shape would fail silently otherwise.
  */
 
 const markOf = (label: string) => screen.getByRole('img', { name: label })
 const partsOf = (label: string, part: string) =>
   markOf(label).querySelectorAll(`[data-part="${part}"]`)
+/** The body group's markup — one path for a round head, several marks for a capsule or sun. */
+const bodyPath = (label: string) => partsOf(label, 'body')[0]?.innerHTML
 
 describe('colour resolution', () => {
   it('resolves a palette name to its hex', () => {
@@ -55,80 +47,122 @@ describe('colour resolution', () => {
   })
 })
 
-describe('hue arithmetic', () => {
-  it('reads a hue off a saturated colour', () => {
-    expect(hueOf('#ff0000')).toBeCloseTo(0)
-    expect(hueOf('#00ff00')).toBeCloseTo(120)
-    expect(hueOf('#0000ff')).toBeCloseTo(240)
+describe('OKLCH hue', () => {
+  it('reads the perceptual hue off a saturated colour', () => {
+    // The textbook OKLCH values for the sRGB primaries. Notably *not* HSL's 0/120/240 —
+    // blobatar's ramps are tuned in OKLCH, and asking it in HSL lands the blues and purples
+    // in the wrong family.
+    expect(oklchHue('#ff0000')).toBeCloseTo(29.2, 0)
+    expect(oklchHue('#00ff00')).toBeCloseTo(142.5, 0)
+    expect(oklchHue('#0000ff')).toBeCloseTo(264.1, 0)
   })
 
-  it('reports no hue for a grey, so the solver does not route around nothing', () => {
-    expect(hueOf('#808080')).toBeNull()
-    expect(hueOf('#ffffff')).toBeNull()
-    expect(hueOf('#000000')).toBeNull()
+  it('answers something finite for a grey, rather than NaN', () => {
+    expect(Number.isFinite(oklchHue('#808080'))).toBe(true)
+  })
+})
+
+describe('the bot palette', () => {
+  it('derives two distinct tones from one hue', () => {
+    const p = resolveBotPalette('sky')
+    expect(p.head).toMatch(/^#[0-9a-f]{6}$/)
+    expect(p.eye).toMatch(/^#[0-9a-f]{6}$/)
+    expect(p.head).not.toBe(p.eye)
   })
 
-  it('measures the short way round the wheel', () => {
-    expect(hueSeparation(10, 350)).toBe(20)
-    expect(hueSeparation(0, 180)).toBe(180)
-    expect(hueSeparation(90, 90)).toBe(0)
+  it('is deterministic, so the roster and the card agree on a colour', () => {
+    expect(resolveBotPalette('leaf')).toEqual(resolveBotPalette('leaf'))
+    expect(resolveBotPalette('#10b981')).toEqual(resolveBotPalette('leaf'))
   })
 
-  it('never exceeds half the wheel, whichever order it is asked in', () => {
-    for (let a = 0; a < 360; a += 17) {
-      for (let b = 0; b < 360; b += 23) {
-        const d = hueSeparation(a, b)
-        expect(d).toBeGreaterThanOrEqual(0)
-        expect(d).toBeLessThanOrEqual(180)
-        expect(hueSeparation(b, a)).toBe(d)
-      }
-    }
+  it('gives every one of the eight swatches its own head tone', () => {
+    const heads = new Set(BOT_COLORS.map((c) => resolveBotPalette(c.name).head))
+    expect(heads.size).toBe(BOT_COLORS.length)
   })
 })
 
 describe('the exported vocabulary', () => {
-  it('offers six shapes, four pickable eye styles and eight colours', () => {
-    expect(BOT_SHAPES).toHaveLength(6)
-    expect(BOT_EYE_STYLES).toHaveLength(4)
+  it('offers nine of blobatar’s ten silhouettes and eight colours', () => {
+    // Every blobatar shape but `triangle`.
+    expect(BOT_SHAPES).toEqual([
+      'round',
+      'organic',
+      'boxy',
+      'capsule',
+      'nub',
+      'cloud',
+      'droplet',
+      'hexagon',
+      'sun',
+    ])
     expect(BOT_COLORS).toHaveLength(8)
   })
 
-  it('keeps `working` out of the picker while still being drawable', () => {
-    expect(BOT_EYE_STYLES).not.toContain('working')
-    expect(BOT_EYE_STYLE_LABELS.working).toBeTruthy()
-  })
-
-  it('names every shape and eye style', () => {
+  it('names every shape', () => {
     for (const shape of BOT_SHAPES) expect(BOT_SHAPE_LABELS[shape]).toBeTruthy()
-    for (const style of BOT_EYE_STYLES) expect(BOT_EYE_STYLE_LABELS[style]).toBeTruthy()
   })
 
   it('keys every colour uniquely, since the key is what gets persisted', () => {
     expect(new Set(BOT_COLORS.map((c) => c.name)).size).toBe(BOT_COLORS.length)
     expect(new Set(BOT_COLORS.map((c) => c.hex)).size).toBe(BOT_COLORS.length)
   })
+})
 
-  it('drops the silhouettes that were tuned for a 3D face', () => {
-    for (const gone of ['cone', 'pill', 'drop']) {
-      expect(BOT_SHAPES as readonly string[]).not.toContain(gone)
+describe('the blobatar contract', () => {
+  // `layoutBlob` reads blobatar's underscore-exported layout. The version is pinned exactly,
+  // and this is what turns a careless bump into a red test instead of a silent drift.
+  it('hands back a body, two eyes and a head ellipse inside the frame, for every shape', () => {
+    for (const shape of BOT_SHAPES) {
+      const { body, eyes, head } = layoutBlob('ad-creator', shape)
+      // A capsule is a path plus two circles, a sun a path plus eight; a round head is one
+      // path. Whatever the count, every mark must be drawable.
+      expect(body.length).toBeGreaterThan(0)
+      for (const mark of body) {
+        if (mark.kind === 'path') expect(mark.d).toMatch(/^M/)
+        else expect(mark.r).toBeGreaterThan(0)
+      }
+      expect(eyes).toHaveLength(2)
+      for (const eye of eyes) {
+        expect(eye.d).toMatch(/^M/)
+        expect(Number.isFinite(eye.cx)).toBe(true)
+        expect(Number.isFinite(eye.cy)).toBe(true)
+      }
+      for (const v of [head.cx, head.cy, head.rx, head.ry]) {
+        expect(Number.isFinite(v)).toBe(true)
+      }
+      expect(head.cx - head.rx).toBeGreaterThan(0)
+      expect(head.cx + head.rx).toBeLessThan(100)
+      expect(head.cy - head.ry).toBeGreaterThan(0)
+      expect(head.cy + head.ry).toBeLessThan(100)
     }
+  })
+
+  it('draws the silhouette it was asked for, not the one the seed would have picked', () => {
+    // Blobatar buckets a 0–1 trait into its ten shapes; each of ours pins a value inside
+    // its bucket. This is what catches the buckets moving under a dependency bump.
+    for (const seed of ['ad-creator', 'code-reviewer', 'default', 'chief-of-staff', 'x']) {
+      for (const shape of BOT_SHAPES) {
+        expect(layoutBlob(seed, shape).shape).toBe(shape)
+      }
+    }
+  })
+
+  it('is deterministic per seed and differs across seeds', () => {
+    expect(layoutBlob('a', 'round')).toEqual(layoutBlob('a', 'round'))
+    expect(layoutBlob('a', 'round').body).not.toEqual(layoutBlob('b', 'round').body)
   })
 })
 
 describe('the prop registry', () => {
-  it('carries a body and a meaning for every prop', () => {
+  it('carries a meaning for every prop', () => {
     for (const id of AVATAR_PROP_IDS) {
-      const prop = AVATAR_PROPS[id]
-      expect(prop.body.length).toBeGreaterThan(0)
-      expect(prop.meaning.length).toBeGreaterThan(0)
+      expect(AVATAR_PROPS[id].meaning.length).toBeGreaterThan(0)
     }
   })
 
-  it('records a dominant hue for every prop, so no glyph silently skips the solver', () => {
+  it('has a monochrome glyph for every prop', () => {
     for (const id of AVATAR_PROP_IDS) {
-      expect(PROP_HUE).toHaveProperty(id)
-      const hex = PROP_HUE[id]
-      if (hex !== null) expect(hex).toMatch(/^#[0-9a-f]{6}$/i)
+      expect(typeof AVATAR_PROP_GLYPHS[id]).toBe('function')
     }
   })
 
@@ -137,19 +171,6 @@ describe('the prop registry', () => {
     expect(isAvatarPropId('not-a-prop')).toBe(false)
     expect(isAvatarPropId(undefined)).toBe(false)
     expect(isAvatarPropId(null)).toBe(false)
-  })
-
-  it('leaves at least one body hue legible against every prop', () => {
-    for (const id of AVATAR_PROP_IDS) {
-      const hex = PROP_HUE[id]
-      const propHue = hex ? hueOf(hex) : null
-      if (propHue === null) continue
-      const clear = BOT_COLORS.filter((c) => {
-        const hue = hueOf(c.hex)
-        return hue === null || hueSeparation(hue, propHue) >= MIN_PROP_HUE_SEPARATION
-      })
-      expect(clear.length).toBeGreaterThan(0)
-    }
   })
 })
 
@@ -165,48 +186,46 @@ describe('BotMark', () => {
     expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
   })
 
-  it('draws every shape and eye style without throwing', () => {
+  it('draws every shape, with a body and eyes', () => {
     for (const shape of BOT_SHAPES) {
-      for (const eyeStyle of [...BOT_EYE_STYLES, 'working' as const]) {
-        const { unmount } = render(
-          <BotMark shape={shape} eyeStyle={eyeStyle} label={`${shape}-${eyeStyle}`} />,
-        )
-        expect(partsOf(`${shape}-${eyeStyle}`, 'body')).toHaveLength(1)
-        expect(partsOf(`${shape}-${eyeStyle}`, 'eyes')).toHaveLength(1)
-        unmount()
-      }
+      const { unmount } = render(<BotMark shape={shape} label={shape} />)
+      expect(partsOf(shape, 'body')).toHaveLength(1)
+      expect(bodyPath(shape)).toBeTruthy()
+      expect(partsOf(shape, 'eyes')).toHaveLength(1)
+      unmount()
     }
   })
 
-  it('paints the body in the resolved hue', () => {
+  it('paints the head and eyes in the resolved palette', () => {
+    const p = resolveBotPalette('leaf')
     render(<BotMark color="leaf" label="leafy" />)
-    expect(partsOf('leafy', 'body')[0]).toHaveAttribute('fill', '#10b981')
+    expect(partsOf('leafy', 'body')[0]).toHaveAttribute('fill', p.head)
+    expect(partsOf('leafy', 'eyes')[0]).toHaveAttribute('fill', p.eye)
+  })
+
+  it('draws a different character for a different seed, and the same one twice', () => {
+    render(<BotMark seed="ad-creator" label="a" />)
+    render(<BotMark seed="ad-creator" label="a-again" />)
+    render(<BotMark seed="code-reviewer" label="b" />)
+    expect(bodyPath('a')).toBeTruthy()
+    expect(bodyPath('a')).toBe(bodyPath('a-again'))
+    expect(bodyPath('a')).not.toBe(bodyPath('b'))
+  })
+
+  it('changes silhouette with the shape, for the same seed', () => {
+    for (const shape of BOT_SHAPES) {
+      render(<BotMark seed="ad-creator" shape={shape} label={`shape-${shape}`} />)
+    }
+    const bodies = new Set(BOT_SHAPES.map((shape) => bodyPath(`shape-${shape}`)))
+    expect(bodies.size).toBe(BOT_SHAPES.length)
   })
 
   it('wears the resting face by default and the working one while busy', () => {
     const { rerender } = render(<BotMark label="worker" />)
-    expect(partsOf('worker', 'eyes')[0]).toHaveAttribute('data-face', DEFAULT_BOT_EYE_STYLE)
+    expect(partsOf('worker', 'eyes')[0]).toHaveAttribute('data-face', 'idle')
 
     rerender(<BotMark label="worker" busy />)
     expect(partsOf('worker', 'eyes')[0]).toHaveAttribute('data-face', 'working')
-  })
-
-  it('keeps the chosen resting face out of the way of the busy one', () => {
-    render(<BotMark label="sleeper" eyeStyle="sleepy" busy />)
-    expect(partsOf('sleeper', 'eyes')[0]).toHaveAttribute('data-face', 'working')
-  })
-
-  it('draws the prop it is given', () => {
-    render(<BotMark prop="headset" size={64} label="support" />)
-    expect(partsOf('support', 'prop')[0]).toHaveAttribute('data-prop', 'headset')
-  })
-
-  it('draws no prop when it is given none, rather than guessing one', () => {
-    render(<BotMark size={64} label="propless" />)
-    expect(partsOf('propless', 'prop')).toHaveLength(0)
-
-    render(<BotMark prop={null} size={64} label="cleared" />)
-    expect(partsOf('cleared', 'prop')).toHaveLength(0)
   })
 })
 
@@ -226,7 +245,6 @@ describe('sizing', () => {
 
   it('sizes itself at the default too, so a bare mark is never zero-width', () => {
     render(<BotMark label="bare" />)
-    expect(markOf('bare').getAttribute('width')).not.toBe('0')
     expect(Number(markOf('bare').getAttribute('width'))).toBeGreaterThan(0)
   })
 
@@ -240,34 +258,22 @@ describe('sizing', () => {
 
 describe('size tiers', () => {
   it('draws everything at hero size', () => {
-    render(<BotMark prop="search" size={96} label="hero" />)
+    render(<BotMark size={96} label="hero" />)
     expect(partsOf('hero', 'ground')).toHaveLength(1)
-    expect(partsOf('hero', 'prop')).toHaveLength(1)
   })
 
-  it('drops the ground first, since a 3-unit ellipse muddies before anything else', () => {
-    render(<BotMark prop="search" size={GROUND_MIN_SIZE - 1} label="mid" />)
+  it('drops the ground below its own threshold', () => {
+    render(<BotMark size={GROUND_MIN_SIZE - 1} label="mid" />)
     expect(partsOf('mid', 'ground')).toHaveLength(0)
-    expect(partsOf('mid', 'prop')).toHaveLength(1)
   })
 
   it('keeps the ground at exactly the threshold, not one pixel above it', () => {
-    render(<BotMark prop="search" size={GROUND_MIN_SIZE} label="edge" />)
+    render(<BotMark size={GROUND_MIN_SIZE} label="edge" />)
     expect(partsOf('edge', 'ground')).toHaveLength(1)
   })
 
-  it('drops the prop below its own threshold', () => {
-    render(<BotMark prop="search" size={PROP_MIN_SIZE - 1} label="tiny" />)
-    expect(partsOf('tiny', 'prop')).toHaveLength(0)
-  })
-
-  it('keeps the prop at exactly its threshold', () => {
-    render(<BotMark prop="search" size={PROP_MIN_SIZE} label="prop-edge" />)
-    expect(partsOf('prop-edge', 'prop')).toHaveLength(1)
-  })
-
   it('never drops the body or the face, however small it gets', () => {
-    render(<BotMark prop="search" size={12} label="dot" />)
+    render(<BotMark size={12} label="dot" />)
     expect(partsOf('dot', 'body')).toHaveLength(1)
     expect(partsOf('dot', 'eyes')).toHaveLength(1)
   })

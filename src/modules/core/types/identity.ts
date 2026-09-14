@@ -11,7 +11,7 @@ import type { AvatarPropId } from '../constants/avatar-props'
  * save. See `stores/identity-store.ts`.
  */
 export interface IdentityOverride {
-  /** Index into the prop-compatible palette, wrapped on read so a stale index cannot blank an avatar. */
+  /** Index into `IDENTITY_COLORS`, wrapped on read so a stale index cannot blank an avatar. */
   colorIndex?: number
   shape?: MascotShape
   /**

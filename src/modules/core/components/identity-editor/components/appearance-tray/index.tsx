@@ -37,6 +37,7 @@ export const AppearanceTray: FC<AppearanceTrayProps> = ({ editor, onDone }) => (
       <ShapePicker
         shape={editor.shape}
         color={editor.color}
+        seed={editor.seed}
         onSelect={editor.chooseShape}
       />
     </div>

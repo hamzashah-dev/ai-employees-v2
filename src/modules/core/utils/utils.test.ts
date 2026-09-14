@@ -3,7 +3,7 @@ import {
   setIdentityOverride,
   useIdentityStore,
 } from '../stores/identity-store'
-import { MASCOT_SHAPES, type MascotShape } from '../constants/identity'
+import { IDENTITY_COLORS, MASCOT_SHAPES, type MascotShape } from '../constants/identity'
 import { getIdentity, toDisplayName, toInitials } from './identity'
 import { formatElapsed, formatRosterTime, toDate } from './time'
 
@@ -24,10 +24,18 @@ describe('identity', () => {
     expect(shapes.size).toBe(1)
   })
 
+  it('carries the canonical key as the blobatar seed', () => {
+    // The seed is what makes this character *this* character. It has to be the key Hermes
+    // will store, not the string the caller happened to hold, or the card and the roster
+    // draw two different faces for one employee.
+    expect(getIdentity('ad-creator').seed).toBe('ad-creator')
+    expect(getIdentity(' Ad-Creator ').seed).toBe('ad-creator')
+  })
+
   it('reaches most of the silhouettes across the catalog', () => {
     // Every shipped catalog id, so this fails if the hash ever collapses onto a subset
-    // and most of the shelf starts looking identical. Not *all eight*: with 22 names and
-    // eight shapes an even split is not something a hash owes anyone, and asserting one
+    // and most of the shelf starts looking identical. Not *all nine*: with 22 names and
+    // nine shapes an even split is not something a hash owes anyone, and asserting one
     // would be asserting a coincidence.
     const shapes = new Set(
       [
@@ -68,16 +76,16 @@ describe('identity', () => {
   })
 
   it('keys an override by the normalised name too', () => {
-    setIdentityOverride(' Inbox-Triage ', { shape: 'hex' })
-    expect(getIdentity('inbox-triage', override('inbox-triage')).shape).toBe('hex')
+    setIdentityOverride(' Inbox-Triage ', { shape: 'boxy' })
+    expect(getIdentity('inbox-triage', override('inbox-triage')).shape).toBe('boxy')
   })
 
   it('ignores a shape this build no longer draws', () => {
-    // `triangle` was in the four-silhouette vocabulary and is still sitting in the
-    // localStorage of anyone who picked it. Falling back to the derived shape beats
-    // rendering nothing, and beats silently rewriting the user's stored choice.
+    // `hex` was in the six-silhouette vocabulary and is still sitting in the localStorage
+    // of anyone who picked it. Falling back to the derived shape beats rendering nothing,
+    // and beats silently rewriting the user's stored choice.
     const derived = getIdentity('ad-creator').shape
-    setIdentityOverride('ad-creator', { shape: 'triangle' as MascotShape })
+    setIdentityOverride('ad-creator', { shape: 'hex' as MascotShape })
     expect(getIdentity('ad-creator', override('ad-creator')).shape).toBe(derived)
   })
 
@@ -91,10 +99,12 @@ describe('identity', () => {
 
   it('honours a stored override', () => {
     const before = getIdentity('ad-creator')
-    setIdentityOverride('ad-creator', { colorIndex: 3, shape: 'cloud' })
+    const otherShape = before.shape === 'hexagon' ? 'cloud' : 'hexagon'
+    const otherColor = (IDENTITY_COLORS.indexOf(before.color) + 3) % IDENTITY_COLORS.length
+    setIdentityOverride('ad-creator', { colorIndex: otherColor, shape: otherShape })
     const after = getIdentity('ad-creator', override('ad-creator'))
 
-    expect(after.shape).toBe('cloud')
+    expect(after.shape).toBe(otherShape)
     expect(after.color).not.toBe(before.color)
   })
 

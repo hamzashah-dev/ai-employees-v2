@@ -6,13 +6,7 @@ import {
   type MascotShape,
 } from '../constants/identity'
 import { AGENT_PROP } from '../constants/avatar-props/assignments'
-import {
-  MIN_PROP_HUE_SEPARATION,
-  PROP_HUE,
-  isAvatarPropId,
-  type AvatarPropId,
-} from '../constants/avatar-props'
-import { hueOf, hueSeparation } from '../components/bot-avatar/utils/color'
+import { isAvatarPropId, type AvatarPropId } from '../constants/avatar-props'
 import type { HexColor } from '../components/bot-avatar/types'
 import type { IdentityOverride } from '../types/identity'
 
@@ -58,36 +52,18 @@ function hash(value: string): number {
 }
 
 export interface EmployeeIdentity {
-  /** A `#rrggbb`, for an SVG `fill`. */
+  /** A `#rrggbb` swatch. `BotMark` resolves it to the head and eye tones. */
   color: HexColor
   shape: MascotShape
   /** The job glyph, or `null` for an employee whose job we have no honest basis to name. */
   prop: AvatarPropId | null
+  /**
+   * What blobatar draws the character from — the canonical key, so a card and a roster row
+   * asking for the same employee get the same face, radii, eyes and tilt.
+   */
+  seed: string
   /** Uppercase initials, used where a mark is too small to read. */
   initials: string
-}
-
-/**
- * Hues whose distance from a prop's dominant colour clears the legibility floor.
- *
- * Props are multicolour illustrations rather than silhouettes, so unlike a monochrome glyph
- * they can lose against the body they sit on: `bullish` is a green chart and would sink into a
- * green employee, `privacy` a blue shield on a blue one. The prop is drawn directly on the
- * body with no chip or plate behind it, so separation has to come from the hue choice.
- *
- * Returns the whole palette when the prop is unknown, absent, or too desaturated to have a hue
- * worth avoiding — a filter that can empty the palette would be worse than the collision.
- */
-export function compatibleColors(prop: AvatarPropId | null): readonly HexColor[] {
-  const propHex = prop ? PROP_HUE[prop] : null
-  const propHue = propHex ? hueOf(propHex) : null
-  if (propHue === null) return IDENTITY_COLORS
-
-  const clear = IDENTITY_COLORS.filter((hex) => {
-    const hue = hueOf(hex)
-    return hue === null || hueSeparation(hue, propHue) >= MIN_PROP_HUE_SEPARATION
-  })
-  return clear.length > 0 ? clear : IDENTITY_COLORS
 }
 
 /**
@@ -108,35 +84,29 @@ export function resolveProp(profile: string, override?: IdentityOverride): Avata
 }
 
 export function getIdentity(profile: string, override?: IdentityOverride): EmployeeIdentity {
-  const h = hash(identityKey(profile))
-  const prop = resolveProp(profile, override)
+  const seed = identityKey(profile)
+  const h = hash(seed)
 
   /*
-   * Two palettes, and which one applies turns on whether a human chose.
-   *
-   * The *derived* colour is drawn from the prop-compatible subset, narrowed before the hash
-   * indexes it so the result stays deterministic per employee while still being legible
-   * against whatever the employee is holding.
-   *
-   * An *explicit* `colorIndex` indexes the full palette instead. The solver exists to pick a
-   * good default, not to overrule a person: the swatch row offers all eight hues, and a user
-   * who picks the green one next to a green prop has to get the green one. Indexing the
-   * filtered list here would silently hand back a different colour than the swatch they
-   * clicked, and the offset would move as their prop changed.
+   * The colour is a plain hash into the palette, with no legibility solver in front of it.
+   * There used to be one: the job prop was a multicolour illustration drawn straight onto the
+   * body, so the body hue had to be kept away from the prop's. The prop no longer draws onto
+   * the avatar at all — `resolveProp` still resolves it for whatever surface wants a job icon
+   * on its own — so nothing constrains the hue any more and it can index the whole palette.
    */
-  const palette = override?.colorIndex == null ? compatibleColors(prop) : IDENTITY_COLORS
-  const colorIndex = override?.colorIndex ?? h % palette.length
+  const colorIndex = override?.colorIndex ?? h % IDENTITY_COLORS.length
 
-  // An override naming a shape this build no longer draws (a `cone` left in localStorage by
-  // the eight-silhouette vocabulary) falls through to the derivation rather than blanking.
+  // An override naming a shape this build no longer draws (a `hex` left in localStorage by
+  // the six-silhouette vocabulary) falls through to the derivation rather than blanking.
   const shape = isMascotShape(override?.shape)
     ? override.shape
-    : (MASCOT_SHAPES[(h >>> 8) % MASCOT_SHAPES.length] ?? 'blob')
+    : (MASCOT_SHAPES[(h >>> 8) % MASCOT_SHAPES.length] ?? 'round')
 
   return {
-    color: palette[Math.abs(colorIndex) % palette.length] ?? DEFAULT_IDENTITY_COLOR,
+    color: IDENTITY_COLORS[Math.abs(colorIndex) % IDENTITY_COLORS.length] ?? DEFAULT_IDENTITY_COLOR,
     shape,
-    prop,
+    prop: resolveProp(profile, override),
+    seed,
     initials: toInitials(profile),
   }
 }

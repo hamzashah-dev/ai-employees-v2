@@ -38,7 +38,14 @@ function hermesDevToken(): Plugin {
     apply: 'serve',
     async transformIndexHtml() {
       try {
-        const res = await fetch(BACKEND, { headers: { accept: 'text/html' } })
+        // A bare `fetch(BACKEND)` breaks once BACKEND carries a path prefix
+        // (e.g. a reverse-proxied `.../dashboard`): the prefix without a
+        // trailing slash serves an empty body there, and only `.../dashboard/`
+        // returns the real HTML with the injected token. Normalize so both a
+        // bare `host:port` and a path-prefixed backend fetch the same shape.
+        const res = await fetch(`${BACKEND.replace(/\/+$/, '')}/`, {
+          headers: { accept: 'text/html' },
+        })
         const html = await res.text()
         const token = html.match(TOKEN_RE)?.[1]
         const authRequired = html.match(AUTH_REQUIRED_RE)?.[1] ?? 'false'

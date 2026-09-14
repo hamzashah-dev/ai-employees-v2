@@ -82,6 +82,18 @@ const SessionDetailView = lazy(() =>
 const WorkspaceMediaDialog = lazy(() =>
   import('@/modules/workspace').then((m) => ({ default: m.WorkspaceMediaDialog })),
 )
+// TEMPORARY — visual experiment only, not linked from any nav. Remove this route (and the
+// import) once the capped-avatar experiment is either adopted for real or dropped.
+const CapExperimentPage = lazy(() =>
+  import('@/modules/core/components/bot-avatar/experiments/capped-avatar/preview').then((m) => ({
+    default: m.CapExperimentPage,
+  })),
+)
+const CapEditorPage = lazy(() =>
+  import('@/modules/core/components/bot-avatar/experiments/capped-avatar/editor').then((m) => ({
+    default: m.CapEditorPage,
+  })),
+)
 
 interface PageProps {
   onOpenSidebar: () => void
@@ -335,6 +347,10 @@ const Shell: FC = () => {
                   }
                 />
               ))}
+
+              {/* TEMPORARY — see the import above. */}
+              <Route path="/dev/cap-experiment" element={<CapExperimentPage />} />
+              <Route path="/dev/cap-editor" element={<CapEditorPage />} />
 
               <Route path="*" element={<Navigate to={ROUTES.NEW_CHAT} replace />} />
             </Routes>
