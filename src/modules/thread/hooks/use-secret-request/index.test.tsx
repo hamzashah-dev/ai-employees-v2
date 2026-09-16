@@ -7,6 +7,12 @@ import type { ChatMessage, SecretRequest } from '@/modules/core/types/chat'
 import { SecretKeyCard } from '../../components/secret-key-card'
 import { useSecretRequest } from '.'
 
+const ref = (profile: string): { profile: string; sessionId: string } => ({
+  profile,
+  sessionId: 's1',
+})
+
+
 /**
  * Two things are under test: the derivation (a request becomes a labelled card's
  * worth of props) and the wiring (the card the transcript draws actually reaches
@@ -53,8 +59,9 @@ function seed(secret?: SecretRequest): Answered {
     submitSecret,
     skipSecret,
     threads: {
-      [PROFILE]: {
+      [`${PROFILE}\u0000s1`]: {
         profile: PROFILE,
+        sessionId: 's1',
         messages: [MESSAGE],
         status: secret ? 'needs-you' : 'ready',
         hydrated: true,
@@ -72,7 +79,7 @@ function seed(secret?: SecretRequest): Answered {
  * drag its connector queries and file-picker along with it for no extra proof.
  */
 const Docked: FC = () => {
-  const secret = useSecretRequest(PROFILE)
+  const secret = useSecretRequest(ref(PROFILE))
   if (!secret.request) return null
 
   return (
@@ -115,7 +122,7 @@ describe('useSecretRequest', () => {
   it('has nothing to show while the agent is not asking', () => {
     seed()
 
-    const { result } = renderHook(() => useSecretRequest(PROFILE))
+    const { result } = renderHook(() => useSecretRequest(ref(PROFILE)))
 
     expect(result.current.request).toBeUndefined()
     expect(result.current.label).toBe('')
@@ -125,7 +132,7 @@ describe('useSecretRequest', () => {
   it('labels the standing request from its variable', () => {
     seed(REQUEST)
 
-    const { result } = renderHook(() => useSecretRequest(PROFILE))
+    const { result } = renderHook(() => useSecretRequest(ref(PROFILE)))
 
     expect(result.current.request).toEqual(REQUEST)
     expect(result.current.label).toBe('Fal AI · API key')
@@ -134,23 +141,23 @@ describe('useSecretRequest', () => {
   it('hands the typed value to the store action untouched', async () => {
     const { submitSecret } = seed(REQUEST)
 
-    const { result } = renderHook(() => useSecretRequest(PROFILE))
+    const { result } = renderHook(() => useSecretRequest(ref(PROFILE)))
     await act(async () => {
       await result.current.submit(TYPED)
     })
 
-    expect(submitSecret).toHaveBeenCalledWith(PROFILE, TYPED)
+    expect(submitSecret).toHaveBeenCalledWith(ref(PROFILE), TYPED)
   })
 
   it('routes "Not now" to the skip action, which is a real answer', async () => {
     const { skipSecret } = seed(REQUEST)
 
-    const { result } = renderHook(() => useSecretRequest(PROFILE))
+    const { result } = renderHook(() => useSecretRequest(ref(PROFILE)))
     await act(async () => {
       await result.current.skip()
     })
 
-    expect(skipSecret).toHaveBeenCalledWith(PROFILE)
+    expect(skipSecret).toHaveBeenCalledWith(ref(PROFILE))
   })
 
   it('reports in flight until the answer lands, so the card can hold its buttons', async () => {
@@ -163,8 +170,9 @@ describe('useSecretRequest', () => {
           }),
       ),
       threads: {
-        [PROFILE]: {
+        [`${PROFILE}\u0000s1`]: {
           profile: PROFILE,
+          sessionId: 's1',
           messages: [],
           status: 'needs-you',
           hydrated: true,
@@ -173,7 +181,7 @@ describe('useSecretRequest', () => {
       },
     })
 
-    const { result } = renderHook(() => useSecretRequest(PROFILE))
+    const { result } = renderHook(() => useSecretRequest(ref(PROFILE)))
     act(() => {
       void result.current.submit(TYPED)
     })
@@ -190,7 +198,7 @@ describe('useSecretRequest', () => {
   it('never parks the value anywhere in the store', async () => {
     seed(REQUEST)
 
-    const { result } = renderHook(() => useSecretRequest(PROFILE))
+    const { result } = renderHook(() => useSecretRequest(ref(PROFILE)))
     await act(async () => {
       await result.current.submit(TYPED)
     })
@@ -214,7 +222,7 @@ describe('the docked secret card', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Submit key' }))
     })
 
-    expect(submitSecret).toHaveBeenCalledWith(PROFILE, TYPED)
+    expect(submitSecret).toHaveBeenCalledWith(ref(PROFILE), TYPED)
   })
 
   it('sends the skip through as well', async () => {
@@ -225,7 +233,7 @@ describe('the docked secret card', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Not now' }))
     })
 
-    expect(skipSecret).toHaveBeenCalledWith(PROFILE)
+    expect(skipSecret).toHaveBeenCalledWith(ref(PROFILE))
   })
 
   it('draws no card at all when nothing is being asked', () => {

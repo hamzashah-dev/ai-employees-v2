@@ -1,17 +1,19 @@
 import { describe, expect, it, vi } from 'vitest'
 import { HermesRpcError } from './gateway'
-import { SessionManager, UnknownProfileError } from './session-manager'
+import { SessionManager, SessionNotFoundError, UnknownProfileError } from './session-manager'
 import type { HermesGateway } from './gateway'
 
 /**
- * What this class decides is whether an employee's thread SURVIVES.
+ * What this class decides is which conversation a message lands in.
  *
- * `session.create` mints a fresh durable key and `session.history` reads the
- * transcript by that key, so a manager that creates on every open shows an
- * empty chat forever and hands the agent a blank context — the bug these tests
- * exist to keep fixed. The mirror-image failure is just as bad: resuming
- * something that is not this app's chat, or minting a second session for an
- * employee that already has one, forks the thread.
+ * An employee holds many sessions at once, so every call is addressed by a
+ * `ThreadRef` — profile plus durable key. Two failures matter. Opening a ref
+ * must RESUME that exact conversation and never quietly create a different one,
+ * because `session.create` mints a fresh key and `session.history` reads by
+ * key: a create dressed up as an open shows an empty chat forever while the
+ * real transcript sits on disk. And inbound events must route back to the
+ * session they came from, not merely to the employee — resolving to the profile
+ * alone spliced every session's deltas into whichever thread was on screen.
  */
 
 type Handler = (params: Record<string, unknown>, call: number) => unknown
@@ -30,7 +32,15 @@ function makeManager(
     seen.set(method, call + 1)
     const handler = handlers[method]
     if (!handler) throw new Error(`unscripted gateway call: ${method}`)
-    return handler(params ?? {}, call)
+    const answer = handler(params ?? {}, call)
+    /*
+     * A handler that produces an Error is scripting a REJECTION. Returning it
+     * instead would leave `session.resume` answering a malformed success, which
+     * this class turns into "nothing to resume" — so a test meaning to exercise
+     * the error path would pass without ever entering it.
+     */
+    if (answer instanceof Error) throw answer
+    return answer
   })
   const gateway = { request } as unknown as HermesGateway
   const listProfileNames = vi.fn().mockResolvedValue(known)
@@ -55,341 +65,149 @@ const sequence =
 
 const absent = () => new HermesRpcError(4007, 'session not found', 'session.resume')
 
-const NOTHING_TO_RESUME = { 'session.list': resolves({ sessions: [] }) }
+const REF = { profile: 'ad-creator', sessionId: 'key-1' }
 
 describe('SessionManager', () => {
-  it('creates a session bound to the requested profile when there is nothing to resume', async () => {
+  it('resumes the conversation named by the ref, and caches it', async () => {
     const { manager, callsTo } = makeManager({
-      ...NOTHING_TO_RESUME,
-      'session.create': resolves({ session_id: 'sess-1' }),
-    })
-
-    await expect(manager.ensureSession('ad-creator')).resolves.toBe('sess-1')
-    expect(callsTo('session.create')).toEqual([
-      expect.objectContaining({ profile: 'ad-creator', source: 'employees-ui' }),
-    ])
-  })
-
-  /**
-   * The regression test. A reload used to land here and get a blank thread.
-   */
-  it('resumes the employee’s newest conversation instead of creating a new one', async () => {
-    const { manager, callsTo } = makeManager({
-      'session.list': resolves({
-        sessions: [{ id: '20260831_101319_9174a3', source: 'employees-ui', message_count: 63 }],
-      }),
       'session.resume': resolves({ session_id: 'live-1' }),
     })
 
-    await expect(manager.ensureSession('ad-creator')).resolves.toBe('live-1')
-    expect(callsTo('session.resume')).toEqual([
-      {
-        session_id: '20260831_101319_9174a3',
-        profile: 'ad-creator',
-        cols: 100,
-        omit_messages: true,
-      },
-    ])
-    expect(callsTo('session.create')).toEqual([])
+    expect(await manager.ensureSession(REF)).toBe('live-1')
+    expect(await manager.ensureSession(REF)).toBe('live-1')
+
+    // One resume for two opens, and it asked for the key in the ref.
+    expect(callsTo('session.resume')).toHaveLength(1)
+    expect(callsTo('session.resume')[0]).toMatchObject({
+      session_id: 'key-1',
+      profile: 'ad-creator',
+    })
   })
 
-  it('lists per profile, because sessions live in that profile’s own state.db', async () => {
-    const { manager, callsTo } = makeManager({
-      ...NOTHING_TO_RESUME,
-      'session.create': resolves({ session_id: 'sess-1' }),
+  it('never creates a session while opening one', async () => {
+    // The whole point: a create here would answer a request for a specific
+    // conversation with a different, empty one.
+    const { manager } = makeManager({ 'session.resume': () => absent() })
+
+    await expect(manager.ensureSession(REF)).rejects.toBeInstanceOf(SessionNotFoundError)
+  })
+
+  it('keeps two conversations with one employee apart', async () => {
+    const { manager } = makeManager({
+      'session.resume': sequence({ session_id: 'live-a' }, { session_id: 'live-b' }),
     })
 
-    await manager.ensureSession('ad-creator')
+    const a = await manager.ensureSession({ profile: 'ad-creator', sessionId: 'key-a' })
+    const b = await manager.ensureSession({ profile: 'ad-creator', sessionId: 'key-b' })
 
-    expect(callsTo('session.list')).toEqual([{ profile: 'ad-creator', limit: 20 }])
+    expect(a).not.toBe(b)
+    expect(manager.refForSession(a)).toEqual({ profile: 'ad-creator', sessionId: 'key-a' })
+    expect(manager.refForSession(b)).toEqual({ profile: 'ad-creator', sessionId: 'key-b' })
   })
 
-  /**
-   * A profile accumulates sessions from the TUI, the desktop and its own
-   * routines. Resuming a cron run as if it were the user's chat would splice
-   * unrelated turns into the thread, so our own source wins even when it is
-   * older.
-   */
-  it('prefers this app’s own session over a newer one from another surface', async () => {
+  it('routes an inbound event to its own session, not just the employee', async () => {
+    const { manager } = makeManager({
+      'session.resume': sequence({ session_id: 'live-a' }, { session_id: 'live-b' }),
+    })
+    await manager.ensureSession({ profile: 'ad-creator', sessionId: 'key-a' })
+    await manager.ensureSession({ profile: 'ad-creator', sessionId: 'key-b' })
+
+    expect(manager.refForSession('live-b')?.sessionId).toBe('key-b')
+    expect(manager.refForSession('never-seen')).toBeUndefined()
+  })
+
+  it('dedupes concurrent opens of the same conversation', async () => {
+    // Two components mounting the same thread must not both resume it, which
+    // would leave two live ids for one conversation.
     const { manager, callsTo } = makeManager({
-      'session.list': resolves({
-        sessions: [
-          { id: 'cron-newest', source: 'cron' },
-          { id: 'ours-older', source: 'employees-ui' },
-        ],
-      }),
       'session.resume': resolves({ session_id: 'live-1' }),
     })
 
-    await manager.ensureSession('ad-creator')
-
-    expect(callsTo('session.resume')[0]).toMatchObject({ session_id: 'ours-older' })
-  })
-
-  it('follows resolved_id to a compression lineage’s live tip', async () => {
-    const { manager, callsTo } = makeManager({
-      'session.list': resolves({
-        sessions: [{ id: 'ancestor', resolved_id: 'live-tip', source: 'employees-ui' }],
-      }),
-      'session.resume': resolves({ session_id: 'live-1' }),
-    })
-
-    await manager.ensureSession('ad-creator')
-
-    expect(callsTo('session.resume')[0]).toMatchObject({ session_id: 'live-tip' })
-  })
-
-  it('tries the next candidate when a listed session has gone, then creates', async () => {
-    const { manager, callsTo } = makeManager({
-      'session.list': resolves({
-        sessions: [
-          { id: 'deleted', source: 'employees-ui' },
-          { id: 'also-deleted', source: 'employees-ui' },
-        ],
-      }),
-      'session.resume': () => {
-        throw absent()
-      },
-      'session.create': resolves({ session_id: 'sess-new' }),
-    })
-
-    await expect(manager.ensureSession('ad-creator')).resolves.toBe('sess-new')
-    expect(callsTo('session.resume').map((params) => params?.session_id)).toEqual([
-      'deleted',
-      'also-deleted',
-    ])
-  })
-
-  /**
-   * Fails CLOSED. A network blip read as "no session" would mint a second
-   * session for an employee that already has one, forking the thread and
-   * orphaning everything said in it.
-   */
-  it('refuses to create a second session when resume fails for any reason but 4007', async () => {
-    const { manager, callsTo } = makeManager({
-      'session.list': resolves({ sessions: [{ id: 'real', source: 'employees-ui' }] }),
-      'session.resume': () => {
-        throw new HermesRpcError(5000, 'db unavailable', 'session.resume')
-      },
-      'session.create': resolves({ session_id: 'must-not-happen' }),
-    })
-
-    await expect(manager.ensureSession('ad-creator')).rejects.toThrow(/db unavailable/)
-    expect(callsTo('session.create')).toEqual([])
-  })
-
-  it('reuses the session for an employee rather than opening a second', async () => {
-    const { manager, callsTo } = makeManager({
-      ...NOTHING_TO_RESUME,
-      'session.create': resolves({ session_id: 'sess-1' }),
-    })
-
-    const a = await manager.ensureSession('ad-creator')
-    const b = await manager.ensureSession('ad-creator')
+    const [a, b] = await Promise.all([manager.ensureSession(REF), manager.ensureSession(REF)])
 
     expect(a).toBe(b)
-    expect(callsTo('session.create')).toHaveLength(1)
+    expect(callsTo('session.resume')).toHaveLength(1)
   })
 
-  it('opens only one session when concurrent callers race', async () => {
-    const { manager, callsTo } = makeManager({
-      ...NOTHING_TO_RESUME,
-      'session.create': resolves({ session_id: 'sess-1' }),
+  it('fails closed when a resume errors for any reason but 4007', async () => {
+    // A network blip read as "no session" would strand a live conversation.
+    const { manager } = makeManager({
+      'session.resume': () => new HermesRpcError(5000, 'boom', 'session.resume'),
     })
 
-    const [a, b] = await Promise.all([
-      manager.ensureSession('ad-creator'),
-      manager.ensureSession('ad-creator'),
-    ])
-
-    expect(a).toBe(b)
-    expect(callsTo('session.create')).toHaveLength(1)
+    await expect(manager.ensureSession(REF)).rejects.toThrow('boom')
   })
 
-  /**
-   * A reconnect invalidates the short-lived ids, not the durable key. Landing
-   * back in the same conversation is the whole point of keeping it.
-   */
-  it('reattaches to the same conversation after a reconnect, without re-listing', async () => {
+  it('creates a session only when asked, and returns its durable key', async () => {
     const { manager, callsTo } = makeManager({
-      ...NOTHING_TO_RESUME,
-      'session.create': resolves({ session_id: 'sess-1', stored_session_id: 'stored-1' }),
-      'session.resume': resolves({ session_id: 'sess-2' }),
+      'session.create': resolves({ session_id: 'live-new', stored_session_id: 'key-new' }),
     })
 
-    await manager.ensureSession('ad-creator')
+    expect(await manager.createSession('ad-creator')).toBe('key-new')
+    expect(callsTo('session.create')[0]).toMatchObject({ profile: 'ad-creator' })
+    // Addressable straight away, without a round trip to resume it.
+    expect(manager.liveIdFor({ profile: 'ad-creator', sessionId: 'key-new' })).toBe('live-new')
+  })
+
+  it('refuses a created session with no durable key', async () => {
+    // Without one there is no address to navigate to, and the session would be
+    // reachable only for as long as this socket lives.
+    const { manager } = makeManager({ 'session.create': resolves({ session_id: 'live-new' }) })
+
+    await expect(manager.createSession('ad-creator')).rejects.toThrow('stored_session_id')
+  })
+
+  it('refuses an employee the backend does not have', async () => {
+    // Hermes resolves an unknown profile to the launch profile and echoes back
+    // a name that hides the fallback, so this is the only place it is catchable.
+    const { manager } = makeManager({ 'session.create': resolves({ session_id: 'x' }) }, ['other'])
+
+    await expect(manager.createSession('ad-creator')).rejects.toBeInstanceOf(UnknownProfileError)
+  })
+
+  it('submits into the session the ref names', async () => {
+    const { manager, callsTo } = makeManager({
+      'session.resume': resolves({ session_id: 'live-1' }),
+      'prompt.submit': resolves({ ok: true }),
+    })
+
+    await manager.submit(REF, 'hello')
+
+    expect(callsTo('prompt.submit')[0]).toEqual({ session_id: 'live-1', text: 'hello' })
+  })
+
+  it('drops live ids on reset but keeps refs openable', async () => {
+    // A reconnect invalidates every short-lived id; the durable key does not
+    // change, so the open thread re-resumes from the one in its URL.
+    const { manager, callsTo } = makeManager({
+      'session.resume': sequence({ session_id: 'live-1' }, { session_id: 'live-2' }),
+    })
+
+    await manager.ensureSession(REF)
     manager.reset()
 
-    await expect(manager.ensureSession('ad-creator')).resolves.toBe('sess-2')
-    expect(callsTo('session.resume')[0]).toMatchObject({ session_id: 'stored-1' })
-    expect(callsTo('session.list')).toHaveLength(1)
-    expect(callsTo('session.create')).toHaveLength(1)
+    expect(manager.liveIdFor(REF)).toBeUndefined()
+    expect(await manager.ensureSession(REF)).toBe('live-2')
+    expect(callsTo('session.resume')).toHaveLength(2)
   })
 
-  /**
-   * `session.resume` answers `stored_session_id: null` and echoes the key it
-   * matched in `resumed` instead, so the durable address has to be carried
-   * forward by the caller or the next reconnect loses the thread.
-   */
-  it('keeps the durable key a resume does not echo back', async () => {
-    const { manager, callsTo } = makeManager({
-      'session.list': resolves({ sessions: [{ id: 'stored-1', source: 'employees-ui' }] }),
-      'session.resume': sequence(
-        { session_id: 'live-1', stored_session_id: null, resumed: 'stored-1' },
-        { session_id: 'live-2' },
-      ),
-    })
+  it('answers a secret request by request id alone', async () => {
+    // `_pending` is keyed by request id, which is why an answer still lands
+    // after a reconnect dropped every session id.
+    const { manager, callsTo } = makeManager({ 'secret.respond': resolves({}) })
 
-    await manager.ensureSession('ad-creator')
-    manager.reset()
-    await manager.ensureSession('ad-creator')
+    await manager.respondSecret('req-9', 'hunter2')
 
-    expect(callsTo('session.resume').map((params) => params?.session_id)).toEqual([
-      'stored-1',
-      'stored-1',
-    ])
+    expect(callsTo('secret.respond')[0]).toEqual({ request_id: 'req-9', value: 'hunter2' })
   })
 
-  /**
-   * The load-bearing test. Hermes resolves an unknown profile to the launch
-   * profile instead of erroring, and echoes back a profile_name that is always
-   * the process-global one — so a typo silently routes a marketing brief to the
-   * generic agent, undetectably. Refusing up front is the only defence.
-   */
-  it('refuses to open a session for an unknown employee', async () => {
-    const { manager, request } = makeManager({}, ['ad-creator'])
+  it('declines a secret with an empty value, which is the skip signal', async () => {
+    // There is no secret.skip RPC: an empty value releases the parked agent and
+    // is read as a decline. Sending nothing at all hangs it until a deadline.
+    const { manager, callsTo } = makeManager({ 'secret.respond': resolves({}) })
 
-    await expect(manager.ensureSession('ad-cretor')).rejects.toBeInstanceOf(UnknownProfileError)
-    expect(request).not.toHaveBeenCalled()
-  })
+    await manager.skipSecret('req-9')
 
-  it('re-checks the roster once before rejecting, so a new hire works', async () => {
-    const listProfileNames = vi
-      .fn()
-      .mockResolvedValueOnce(['ad-creator'])
-      .mockResolvedValueOnce(['ad-creator', 'talent-scout'])
-    const request = vi.fn(async (method: string) => {
-      if (method === 'session.list') return { sessions: [] }
-      if (method === 'session.create') return { session_id: 'sess-2' }
-      throw new Error(`unscripted gateway call: ${method}`)
-    })
-    const manager = new SessionManager({ request } as unknown as HermesGateway, {
-      listProfileNames,
-    })
-
-    await expect(manager.ensureSession('talent-scout')).resolves.toBe('sess-2')
-    expect(listProfileNames).toHaveBeenCalledTimes(2)
-  })
-
-  it('maps a session id back to its employee', async () => {
-    const { manager } = makeManager({
-      ...NOTHING_TO_RESUME,
-      'session.create': resolves({ session_id: 'sess-1' }),
-    })
-    await manager.ensureSession('ad-creator')
-
-    expect(manager.profileForSession('sess-1')).toBe('ad-creator')
-    expect(manager.profileForSession('other')).toBeUndefined()
-  })
-
-  it('sends prompts to the session bound to that employee', async () => {
-    const { manager, request } = makeManager({
-      'session.list': resolves({ sessions: [{ id: 'stored-1', source: 'employees-ui' }] }),
-      'session.resume': resolves({ session_id: 'sess-a' }),
-      'prompt.submit': resolves({ status: 'streaming' }),
-    })
-
-    await manager.submit('ad-creator', 'hello')
-
-    expect(request).toHaveBeenLastCalledWith('prompt.submit', {
-      session_id: 'sess-a',
-      text: 'hello',
-    })
-  })
-
-  it('reads history from the session it resumed', async () => {
-    const { manager, request } = makeManager({
-      'session.list': resolves({ sessions: [{ id: 'stored-1', source: 'employees-ui' }] }),
-      'session.resume': resolves({ session_id: 'sess-a' }),
-      'session.history': resolves({ count: 2, messages: [{ role: 'user', text: 'hi' }] }),
-    })
-
-    await expect(manager.history('ad-creator')).resolves.toMatchObject({ count: 2 })
-    expect(request).toHaveBeenLastCalledWith('session.history', { session_id: 'sess-a' })
-  })
-
-  it('does nothing when interrupting an employee with no session', async () => {
-    const { manager, request } = makeManager({})
-    await manager.interrupt('ad-creator')
-    expect(request).not.toHaveBeenCalled()
-  })
-
-  it('answers a clarify by request id alone, with no session id', async () => {
-    // `clarify.respond` -> `_respond(rid, params, "answer")` reads only
-    // `params["request_id"]` and `params["answer"]`; `_pending` is keyed by the
-    // request id, so no session has to exist for the answer to land.
-    const { manager, request } = makeManager({ 'clarify.respond': resolves({}) })
-
-    await manager.answerClarify('ad-creator', 'c1', 'logged in')
-
-    expect(request).toHaveBeenCalledWith('clarify.respond', {
-      request_id: 'c1',
-      answer: 'logged in',
-    })
-  })
-
-  it('sends a captured secret by request id alone, with no session id', async () => {
-    // `secret.respond` -> `_respond(rid, params, "value")` reads only
-    // `params["request_id"]` and `params["value"]`, and `_pending` is keyed by
-    // the request id, so the value lands even after a reconnect lost our
-    // session ids. An unscripted method throws, so this also proves no session
-    // is opened on the way.
-    const { manager, request } = makeManager({ 'secret.respond': resolves({ status: 'ok' }) })
-
-    await manager.respondSecret('ad-creator', 's1', 'super-secret')
-
-    expect(request).toHaveBeenCalledWith('secret.respond', {
-      request_id: 's1',
-      value: 'super-secret',
-    })
-    expect(request).toHaveBeenCalledTimes(1)
-  })
-
-  /**
-   * A key is opaque. Trimming, re-casing or collapsing whitespace would write a
-   * subtly wrong value into the env file and fail at first use, far away from
-   * here and with nothing in the transcript to look at.
-   */
-  it('passes the secret value through untouched', async () => {
-    const { manager, request } = makeManager({ 'secret.respond': resolves({ status: 'ok' }) })
-    const value = '  -----BEGIN KEY-----\n aB+/=\t '
-
-    await manager.respondSecret('ad-creator', 's1', value)
-
-    expect(request).toHaveBeenCalledWith('secret.respond', { request_id: 's1', value })
-  })
-
-  /**
-   * "Not now" is the same RPC with an empty value: `if not val` in the capture
-   * callback returns `{skipped: true}`, nothing is written to the env file and
-   * the agent continues without the key. Sending nothing instead leaves the
-   * agent thread parked until `_block`'s deadline — a hang.
-   */
-  it('skips a secret request with an empty value on the same method', async () => {
-    const { manager, request } = makeManager({ 'secret.respond': resolves({ status: 'ok' }) })
-
-    await manager.skipSecret('ad-creator', 's1')
-
-    expect(request).toHaveBeenCalledWith('secret.respond', { request_id: 's1', value: '' })
-    expect(request).toHaveBeenCalledTimes(1)
-  })
-
-  it('throws when the server returns no session id', async () => {
-    const { manager } = makeManager({
-      ...NOTHING_TO_RESUME,
-      'session.create': resolves({}),
-    })
-
-    await expect(manager.ensureSession('ad-creator')).rejects.toThrow(/no session_id/)
+    expect(callsTo('secret.respond')[0]).toEqual({ request_id: 'req-9', value: '' })
   })
 })

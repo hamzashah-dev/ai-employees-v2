@@ -39,8 +39,7 @@ const wrap = (ui: ReactNode) =>
 
 function renderComposer(profile = 'inbox-manager', connection: ConnectionState = 'open') {
   return wrap(
-    <Composer
-      profile={profile}
+    <Composer thread={{ profile: profile, sessionId: 's1' }}
       displayName="Inbox Manager"
       working={false}
       connection={connection}
@@ -61,7 +60,10 @@ describe('useComposer', () => {
 
     await userEvent.type(box, 'Park legal in its own folder{Enter}')
 
-    expect(send).toHaveBeenCalledWith('inbox-manager', 'Park legal in its own folder')
+    expect(send).toHaveBeenCalledWith(
+      { profile: 'inbox-manager', sessionId: 's1' },
+      'Park legal in its own folder',
+    )
     expect(box).toHaveValue('')
   })
 
@@ -95,7 +97,7 @@ describe('useComposer', () => {
       >
         <TooltipProvider>
           <Composer
-            profile="sales-outbound"
+            thread={{ profile: 'sales-outbound', sessionId: 's1' }}
             displayName="Sales Outbound"
             working={false}
             connection="open"

@@ -6,7 +6,14 @@ import type { SessionManager } from '../services/hermes/session-manager'
 import type { HermesWireMessage } from '../services/hermes/types'
 
 function thread(overrides: Partial<EmployeeThread> = {}): EmployeeThread {
-  return { profile: 'ad-creator', messages: [], status: 'ready', hydrated: true, ...overrides }
+  return {
+    profile: 'ad-creator',
+    sessionId: 's1',
+    messages: [],
+    status: 'ready',
+    hydrated: true,
+    ...overrides,
+  }
 }
 
 function event(type: string, payload: Record<string, unknown> = {}): GatewayEvent {
@@ -570,9 +577,9 @@ describe('hydrate', () => {
       ],
     }))
 
-    await useChatStore.getState().hydrate('ad-creator')
+    await useChatStore.getState().hydrate({ profile: 'ad-creator', sessionId: 's1' })
 
-    const restored = useChatStore.getState().threads['ad-creator']
+    const restored = useChatStore.getState().threads['ad-creator\u0000s1']
     expect(restored?.hydrated).toBe(true)
     expect(restored?.messages.map((m) => m.text)).toEqual([
       'generate me a cat',
@@ -589,11 +596,11 @@ describe('hydrate', () => {
     const calls = bindHistory(async () => ({ messages: [{ role: 'user', text: 'hi' }] }))
 
     await Promise.all([
-      useChatStore.getState().hydrate('ad-creator'),
-      useChatStore.getState().hydrate('ad-creator'),
+      useChatStore.getState().hydrate({ profile: 'ad-creator', sessionId: 's1' }),
+      useChatStore.getState().hydrate({ profile: 'ad-creator', sessionId: 's1' }),
     ])
 
-    expect(calls).toEqual(['ad-creator'])
+    expect(calls).toEqual([{ profile: 'ad-creator', sessionId: 's1' }])
   })
 
   it('puts a failed restore on the thread instead of leaving it blank forever', async () => {
@@ -601,9 +608,9 @@ describe('hydrate', () => {
       throw new Error('socket is not open')
     })
 
-    await useChatStore.getState().hydrate('ad-creator')
+    await useChatStore.getState().hydrate({ profile: 'ad-creator', sessionId: 's1' })
 
-    const failed = useChatStore.getState().threads['ad-creator']
+    const failed = useChatStore.getState().threads['ad-creator\u0000s1']
     expect(failed?.error).toBe('socket is not open')
     // Hydrated even so: the thread is settled, and the error is what it shows.
     expect(failed?.hydrated).toBe(true)
@@ -611,11 +618,11 @@ describe('hydrate', () => {
 
   it('lets a later call retry after a failure', async () => {
     const calls = bindHistory(async () => ({ messages: [] }))
-    await useChatStore.getState().hydrate('ad-creator')
-    await useChatStore.getState().hydrate('ad-creator')
+    await useChatStore.getState().hydrate({ profile: 'ad-creator', sessionId: 's1' })
+    await useChatStore.getState().hydrate({ profile: 'ad-creator', sessionId: 's1' })
 
     // The second is a no-op: the first already settled the thread.
-    expect(calls).toEqual(['ad-creator'])
+    expect(calls).toEqual([{ profile: 'ad-creator', sessionId: 's1' }])
   })
 })
 
@@ -652,7 +659,7 @@ describe('answering a secret request', () => {
   function standing(): void {
     useChatStore.setState({
       threads: {
-        'ad-creator': thread({
+        ['ad-creator\u0000s1']: thread({
           status: 'needs-you',
           secret: { requestId: 's1', envVar: 'LINEAR_API_KEY', prompt: 'Paste a Linear key.' },
         }),
@@ -664,10 +671,10 @@ describe('answering a secret request', () => {
     const attempts = bindSecrets()
     standing()
 
-    await useChatStore.getState().submitSecret('ad-creator', VALUE)
+    await useChatStore.getState().submitSecret({ profile: 'ad-creator', sessionId: 's1' }, VALUE)
 
-    expect(attempts).toEqual([{ method: 'respondSecret', args: ['ad-creator', 's1', VALUE] }])
-    const after = useChatStore.getState().threads['ad-creator']
+    expect(attempts).toEqual([{ method: 'respondSecret', args: ['s1', VALUE] }])
+    const after = useChatStore.getState().threads['ad-creator\u0000s1']
     expect(after?.secret).toBeUndefined()
     // The parked agent thread carries on with its turn.
     expect(after?.status).toBe('working')
@@ -678,12 +685,12 @@ describe('answering a secret request', () => {
     const attempts = bindSecrets()
     standing()
 
-    await useChatStore.getState().skipSecret('ad-creator')
+    await useChatStore.getState().skipSecret({ profile: 'ad-creator', sessionId: 's1' })
 
     // "Not now" is a real answer — it releases the thread rather than dismissing
     // a card and leaving the agent parked.
-    expect(attempts).toEqual([{ method: 'skipSecret', args: ['ad-creator', 's1'] }])
-    expect(useChatStore.getState().threads['ad-creator']?.secret).toBeUndefined()
+    expect(attempts).toEqual([{ method: 'skipSecret', args: ['s1'] }])
+    expect(useChatStore.getState().threads['ad-creator\u0000s1']?.secret).toBeUndefined()
   })
 
   it('keeps the card standing when the send fails, without leaking the value', async () => {
@@ -692,9 +699,9 @@ describe('answering a secret request', () => {
     })
     standing()
 
-    await useChatStore.getState().submitSecret('ad-creator', VALUE)
+    await useChatStore.getState().submitSecret({ profile: 'ad-creator', sessionId: 's1' }, VALUE)
 
-    const after = useChatStore.getState().threads['ad-creator']
+    const after = useChatStore.getState().threads['ad-creator\u0000s1']
     // Still parked, so retrying is the only way through.
     expect(after?.secret?.requestId).toBe('s1')
     expect(after?.error).toBe('socket is not open')
@@ -706,7 +713,7 @@ describe('answering a secret request', () => {
       // A second request landed while the RPC was in flight.
       useChatStore.setState({
         threads: {
-          'ad-creator': thread({
+          ['ad-creator\u0000s1']: thread({
             status: 'needs-you',
             secret: { requestId: 's2', envVar: 'STRIPE_KEY', prompt: 'And this one.' },
           }),
@@ -715,9 +722,9 @@ describe('answering a secret request', () => {
     })
     standing()
 
-    await useChatStore.getState().submitSecret('ad-creator', VALUE)
+    await useChatStore.getState().submitSecret({ profile: 'ad-creator', sessionId: 's1' }, VALUE)
 
-    const after = useChatStore.getState().threads['ad-creator']
+    const after = useChatStore.getState().threads['ad-creator\u0000s1']
     expect(after?.secret?.requestId).toBe('s2')
     expect(after?.status).toBe('needs-you')
   })
@@ -726,8 +733,8 @@ describe('answering a secret request', () => {
     const attempts = bindSecrets()
     useChatStore.setState({ threads: { 'ad-creator': thread() } })
 
-    await useChatStore.getState().submitSecret('ad-creator', VALUE)
-    await useChatStore.getState().skipSecret('ad-creator')
+    await useChatStore.getState().submitSecret({ profile: 'ad-creator', sessionId: 's1' }, VALUE)
+    await useChatStore.getState().skipSecret({ profile: 'ad-creator', sessionId: 's1' })
 
     expect(attempts).toEqual([])
   })

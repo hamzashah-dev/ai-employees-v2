@@ -18,7 +18,8 @@ import { Spinner } from '@/modules/core/components/spinner'
 import { ROUTES } from '@/modules/roster/constants'
 import { AVAILABLE_CATALOG, type CatalogAgent } from '../../constants/catalog'
 import type { Connector } from '../../constants/connectors'
-import { packSource } from '../../hooks/use-install-agent'
+import { packFor } from '../../hooks/use-install-agent'
+import { formatPackSize } from '../../utils/pack-size'
 import { RequirementRow } from './components/requirement-row'
 import { useAgentDetail } from './hooks/use-agent-detail'
 
@@ -64,6 +65,8 @@ const AgentDetailPanel: FC<{ agent: CatalogAgent }> = ({ agent }) => {
   } = useAgentDetail(agent)
 
   const held = justHired && summary.held
+  /* Absent when the id has no pack — the caption then just names the file. */
+  const packSize = formatPackSize(packFor(agent.id)?.bytes ?? Number.NaN)
 
   const footer = (
     <footer className="flex flex-wrap items-center gap-3 border-t border-secondary bg-fill px-6 py-4">
@@ -79,12 +82,15 @@ const AgentDetailPanel: FC<{ agent: CatalogAgent }> = ({ agent }) => {
       )}
 
       {isHiring && (
-        // D17's in-progress state names the real pack path rather than a generic
-        // spinner caption — `installProfile` really does resolve it from here
-        // (`use-install-agent`), so this is a true statement about what is
-        // happening, not decoration.
+        // D17's in-progress state names the real transfer rather than a generic
+        // spinner caption. It is an upload, not a local copy: the pack is built
+        // into this bundle and `useInstallAgent` sends it to the Hermes machine
+        // before importing it, so naming the file and its size is a true
+        // statement about what is happening and roughly how long it takes.
         <p className="ml-auto text-label-sm text-tertiary">
-          Installing the pack from <span className="font-robotoMono">{packSource(agent.id)}</span>
+          Uploading{' '}
+          <span className="font-robotoMono">{agent.id}.tar.gz</span>
+          {packSize && ` (${packSize})`} to your Hermes
         </p>
       )}
 

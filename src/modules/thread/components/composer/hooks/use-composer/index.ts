@@ -3,6 +3,7 @@ import type { ChangeEvent, FormEvent, KeyboardEvent, RefObject } from 'react'
 import type { ConnectionState } from '@/modules/core/services/hermes/gateway'
 import { useChatStore } from '@/modules/core/stores/chat-store'
 import { useAttachFile } from '../../../../hooks/use-attach-file'
+import type { ThreadRef } from '@/modules/core/services/hermes/session-manager'
 
 /** Why the composer is shut, in the reader's terms rather than the socket's. */
 function connectionNote(connection: ConnectionState): string | null {
@@ -40,19 +41,40 @@ export interface UseComposerResult {
   onStop: () => void
 }
 
-export function useComposer(profile: string, connection: ConnectionState): UseComposerResult {
+/**
+ * Where a composer sends.
+ *
+ * Either an open conversation, or a promise of one — the "Start a new session"
+ * composer and the chat home both have no session until the user actually says
+ * something, and creating one on mount would litter the list with empty
+ * sessions every time somebody looked at an employee.
+ */
+export interface ComposerTarget {
+  /** The conversation to send into, when there already is one. */
+  thread?: ThreadRef
+  /** Creates the conversation on first send, and is told where it landed. */
+  startThread?: () => Promise<ThreadRef>
+}
+
+export function useComposer(
+  target: ComposerTarget,
+  connection: ConnectionState,
+): UseComposerResult {
+  const thread = target.thread
   const [value, setValue] = useState('')
-  const [draftFor, setDraftFor] = useState(profile)
+  const [draftFor, setDraftFor] = useState(thread)
   const noteId = useId()
   const fileInput = useRef<HTMLInputElement>(null)
-  const { attach, pending: attaching, error: attachError, clearError } = useAttachFile(profile)
+  const { attach, pending: attaching, error: attachError, clearError } = useAttachFile(
+    thread ?? { profile: '', sessionId: '' },
+  )
 
   // A draft belongs to the employee it was written for; carrying it across a
   // switch would put words in the wrong thread. Adjusting during render is
   // React's own answer to state a prop change invalidates — an effect would
   // paint the stale draft first.
-  if (draftFor !== profile) {
-    setDraftFor(profile)
+  if (draftFor !== thread) {
+    setDraftFor(thread)
     setValue('')
   }
 
@@ -64,7 +86,18 @@ export function useComposer(profile: string, connection: ConnectionState): UseCo
     const text = value.trim()
     if (!text || offline) return
     setValue('')
-    void useChatStore.getState().send(profile, text)
+
+    /*
+     * Create-then-send, in that order and only on a real message. The new
+     * session's key is what the caller navigates to, so the user lands in the
+     * conversation their words actually went to rather than one opened
+     * speculatively beside it.
+     */
+    if (thread) {
+      void useChatStore.getState().send(thread, text)
+      return
+    }
+    void target.startThread?.().then((created) => useChatStore.getState().send(created, text))
   }
 
   const pickFile = async (event: ChangeEvent<HTMLInputElement>): Promise<void> => {
@@ -111,6 +144,9 @@ export function useComposer(profile: string, connection: ConnectionState): UseCo
       submit()
     },
     onPickFile: (event) => void pickFile(event),
-    onStop: () => void useChatStore.getState().stop(profile),
+    // Nothing to interrupt before the session exists.
+    onStop: () => {
+      if (thread) void useChatStore.getState().stop(thread)
+    },
   }
 }

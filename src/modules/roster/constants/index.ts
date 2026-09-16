@@ -46,6 +46,16 @@ export const ROUTES = {
 } as const
 
 /**
+ * Where one conversation lives.
+ *
+ * An employee's own route is their session list; a session is a page under it,
+ * which is what makes a conversation linkable and a reload land back in it.
+ */
+export function sessionPath(profile: string, sessionId: string): string {
+  return `${ROUTES.EMPLOYEES}/${encodeURIComponent(profile)}/sessions/${encodeURIComponent(sessionId)}`
+}
+
+/**
  * Settings' Connectors tab, spelled out here rather than imported.
  *
  * `settingsTabPath('connectors')` would say the same thing, but it lives in `modules/

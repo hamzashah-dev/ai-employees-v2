@@ -16,9 +16,12 @@ import {
 } from './constants'
 import { useComposer } from './hooks/use-composer'
 import { useSpeechToText } from './hooks/use-speech-to-text'
+import type { ThreadRef } from '@/modules/core/services/hermes/session-manager'
 
 interface ComposerProps {
-  profile: string
+  thread?: ThreadRef
+  /** Creates the session on first send. See `ComposerTarget`. */
+  startThread?: () => Promise<ThreadRef>
   displayName: string
   /** True while the employee is mid-turn: send becomes stop. */
   working: boolean
@@ -55,7 +58,8 @@ interface ComposerProps {
  * mechanism is not.
  */
 export const Composer: FC<ComposerProps> = ({
-  profile,
+  thread,
+  startThread,
   displayName,
   working,
   connection,
@@ -79,7 +83,7 @@ export const Composer: FC<ComposerProps> = ({
     onKeyDown,
     onPickFile,
     onStop,
-  } = useComposer(profile, connection)
+  } = useComposer({ thread, startThread }, connection)
 
   const recorder = useSpeechToText({ onTranscript: insertText })
   const transcribing = recorder.isRecording || recorder.isProcessing
@@ -129,7 +133,7 @@ export const Composer: FC<ComposerProps> = ({
                   disabled={offline}
                   attaching={attaching}
                 />
-                <ConnectorsDropdown profile={profile} />
+                {thread && <ConnectorsDropdown profile={thread.profile} />}
               </div>
             )}
 

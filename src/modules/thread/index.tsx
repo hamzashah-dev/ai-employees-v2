@@ -1,4 +1,8 @@
-import type { FC } from 'react'
+import { useState, type FC } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useStartSession } from '@/modules/core/hooks/use-start-session'
+import { useSessionRows } from '@/modules/core/hooks/use-session-rows'
+import { ROUTES, sessionPath } from '@/modules/roster/constants'
 import { useDisplayName } from '@/modules/core/hooks/use-identity'
 import { Composer } from './components/composer'
 import { MessageList } from './components/message-list'
@@ -6,9 +10,10 @@ import { SecretKeyCard } from './components/secret-key-card'
 import { ThreadHeader } from './components/thread-header'
 import { useSecretRequest } from './hooks/use-secret-request'
 import { useThread } from './hooks/use-thread'
+import type { ThreadRef } from '@/modules/core/services/hermes/session-manager'
 
 interface ThreadViewProps {
-  profile: string
+  threadRef: ThreadRef
   panelOpen: boolean
   onTogglePanel: () => void
   /** Opens the panel if it is closed. The header's identity button is the caller. */
@@ -25,24 +30,53 @@ interface ThreadViewProps {
  * reading width stays comfortable instead of the text being squeezed.
  */
 export const ThreadView: FC<ThreadViewProps> = ({
-  profile,
+  threadRef,
   panelOpen,
   onTogglePanel,
   onOpenPanel,
   onOpenSidebar,
 }) => {
-  const { thread, connection } = useThread(profile)
-  const displayName = useDisplayName(profile)
+  const { thread, connection } = useThread(threadRef)
+  const navigate = useNavigate()
+  const startSession = useStartSession(threadRef.profile)
+  const [startingSession, setStartingSession] = useState(false)
+  /*
+   * The title comes from the session list rather than the socket: Hermes titles
+   * a session with an LLM after the fact, and no gateway event carries it. The
+   * header falls back to a neutral label until that list has loaded, rather
+   * than inventing a name from the first message.
+   */
+  const { rows } = useSessionRows(threadRef.profile)
+  const sessionTitle =
+    rows.find((row) => row.id === threadRef.sessionId)?.title?.trim() ?? ''
+
+  const openSessions = (): void => {
+    navigate(`${ROUTES.EMPLOYEES}/${encodeURIComponent(threadRef.profile)}`)
+  }
+
+  const newSession = (): void => {
+    setStartingSession(true)
+    void startSession()
+      .then((ref) => {
+        navigate(sessionPath(ref.profile, ref.sessionId))
+      })
+      .finally(() => setStartingSession(false))
+  }
+  const displayName = useDisplayName(threadRef.profile)
   const working = thread?.status === 'working'
-  const secret = useSecretRequest(profile)
+  const secret = useSecretRequest(threadRef)
 
   const columnClassName = panelOpen ? 'w-[600px] max-w-[90%]' : 'w-[768px] max-w-full'
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col bg-primary">
       <ThreadHeader
-        profile={profile}
+        profile={threadRef.profile}
         displayName={displayName}
+        sessionTitle={sessionTitle}
+        onOpenSessions={openSessions}
+        onNewSession={newSession}
+        startingSession={startingSession}
         panelOpen={panelOpen}
         onTogglePanel={onTogglePanel}
         onOpenPanel={onOpenPanel}
@@ -50,7 +84,7 @@ export const ThreadView: FC<ThreadViewProps> = ({
       />
 
       <MessageList
-        profile={profile}
+        thread={threadRef}
         displayName={displayName}
         messages={thread?.messages ?? []}
         approval={thread?.approval}
@@ -61,7 +95,10 @@ export const ThreadView: FC<ThreadViewProps> = ({
       />
 
       <Composer
-        profile={profile}
+        // The design names the session rather than the employee here: you are
+        // replying inside one conversation, not messaging a person in general.
+        placeholder="Reply in this session"
+        thread={threadRef}
         displayName={displayName}
         working={working}
         connection={connection}

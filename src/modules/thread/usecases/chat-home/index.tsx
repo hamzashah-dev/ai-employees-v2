@@ -1,5 +1,7 @@
 import type { FC } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useStartSession } from '@/modules/core/hooks/use-start-session'
+import { sessionPath } from '@/modules/roster/constants'
 import { ACCOUNT_NAME } from '@/modules/core/constants/account'
 import { Composer } from '../../components/composer'
 import { useChatHome } from './hooks/use-chat-home'
@@ -13,6 +15,19 @@ import { useChatHome } from './hooks/use-chat-home'
  */
 export const ChatHomeView: FC = () => {
   const { target, displayName, connection, working, isPending, isError } = useChatHome()
+  const navigate = useNavigate()
+  const startSession = useStartSession(target ?? '')
+
+  /*
+   * The home composer has no session until the user says something. Creating
+   * one on load would add an empty row to that employee's history every time
+   * the app was merely opened.
+   */
+  const startThread = async (): Promise<{ profile: string; sessionId: string }> => {
+    const ref = await startSession()
+    navigate(sessionPath(ref.profile, ref.sessionId))
+    return ref
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-7 px-6 pb-16">
@@ -22,7 +37,7 @@ export const ChatHomeView: FC = () => {
 
       {target ? (
         <Composer
-          profile={target}
+          startThread={startThread}
           displayName={displayName}
           working={working}
           connection={connection}

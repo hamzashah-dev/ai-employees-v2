@@ -14,9 +14,11 @@ import { RoutinesPreview } from './components/routines-preview'
 import { WorkspaceSection } from './components/workspace-section'
 import { useBrowserView } from './hooks/use-browser-view'
 import { usePanelResize } from './hooks/use-panel-resize'
+import { refKey, type ThreadRef } from '@/modules/core/services/hermes/session-manager'
 
 export interface EmployeePanelProps {
-  profile: string
+  /** The conversation the panel reports on — browsing and clarify are per-session. */
+  thread: ThreadRef
   onClose: () => void
 }
 
@@ -52,7 +54,7 @@ export interface EmployeePanelProps {
  * of the state: it is squeezed out by ordinary flex, and the drawer is the
  * positioned, opaque sibling that paints over what is left.
  */
-export const EmployeePanel: FC<EmployeePanelProps> = ({ profile, onClose }) => {
+export const EmployeePanel: FC<EmployeePanelProps> = ({ thread, onClose }) => {
   const { panelRef, width, isDragging, onPointerDown, onKeyDown } = usePanelResize()
   const isLaptop = useIsLaptop()
   const [isMaximized, setIsMaximized] = useState(false)
@@ -60,9 +62,10 @@ export const EmployeePanel: FC<EmployeePanelProps> = ({ profile, onClose }) => {
   // the frame's focus listener is not re-bound on every render.
   const toggleMaximize = useCallback(() => setIsMaximized((on) => !on), [])
 
+  const profile = thread.profile
   const displayName = useDisplayName(profile)
-  const isWorking = useChatStore((state) => state.threads[profile]?.status === 'working')
-  const { liveUrl, agentBrowsing, steps, clarify, answer } = useBrowserView(profile)
+  const isWorking = useChatStore((state) => state.threads[refKey(thread)]?.status === 'working')
+  const { liveUrl, agentBrowsing, steps, clarify, answer } = useBrowserView(thread)
 
   /*
    * The dock is drawn while there is a session to report, and not otherwise.
@@ -93,7 +96,7 @@ export const EmployeePanel: FC<EmployeePanelProps> = ({ profile, onClose }) => {
       />
 
       <div className="scrollbar-minimal flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pt-1 pb-4">
-        <IdentityBlock profile={profile} />
+        <IdentityBlock thread={thread} />
 
         {/* The request goes above everything it is about: it is the thing that has stopped,
             and until it is answered nothing else in here will change. */}

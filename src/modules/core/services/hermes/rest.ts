@@ -12,7 +12,8 @@ import type {
   HermesMcpServersResponse,
   HermesModelOptions,
   HermesProfile,
-  HermesProfileInstallResult,
+  HermesProfileImportResult,
+  HermesManagedFileResult,
   HermesProfilesResponse,
   HermesSearchHit,
   HermesSearchResponse,
@@ -39,7 +40,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       Accept: 'application/json',
-      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+      /*
+       * Only a string body is JSON. A FormData body must be left alone: the
+       * browser sets `multipart/form-data; boundary=…` itself, and a
+       * hand-written Content-Type omits the boundary, so the server sees a
+       * body it cannot split into parts.
+       */
+      ...(typeof init?.body === 'string' ? { 'Content-Type': 'application/json' } : {}),
       ...authHeaders(),
       ...init?.headers,
     },
@@ -144,13 +151,61 @@ export function deleteProfile(name: string): Promise<unknown> {
  * `env_requires` in the response is what the agent still needs before it can
  * work — render it as the post-hire setup list.
  */
-export function installProfile(body: {
-  source: string
+export function createManagedDir(path: string): Promise<HermesManagedFileResult> {
+  return request<HermesManagedFileResult>('/api/files/mkdir', {
+    method: 'POST',
+    body: JSON.stringify({ path }),
+  })
+}
+
+/**
+ * Put a file on the backend's filesystem.
+ *
+ * `upload-stream` over the JSON `/api/files/upload`, which takes a data URL:
+ * base64 inflates a payload by a third, and these are archives measured in
+ * hundreds of kilobytes.
+ */
+export function uploadManagedFile(
+  path: string,
+  file: Blob,
+  filename: string,
+): Promise<HermesManagedFileResult> {
+  const form = new FormData()
+  form.append('file', file, filename)
+  form.append('path', path)
+  form.append('overwrite', 'true')
+
+  return request<HermesManagedFileResult>('/api/files/upload-stream', {
+    method: 'POST',
+    body: form,
+  })
+}
+
+export function deleteManagedFile(path: string): Promise<HermesManagedFileResult> {
+  return request<HermesManagedFileResult>('/api/files', {
+    method: 'DELETE',
+    body: JSON.stringify({ path }),
+  })
+}
+
+/**
+ * Import a profile from a `.tar.gz` **already on the backend's filesystem**.
+ *
+ * `archive` is a backend path, not an upload — `ProfileImport` in
+ * `computer_cli/web_models.py` says so, and the endpoint was written for
+ * desktop builds where the picker dialog and the backend share a machine. The
+ * cloud VM shares nothing with this browser, which is why `useInstallAgent`
+ * uploads first and passes the path it landed at.
+ *
+ * The archive must contain exactly one top-level directory; `name` overrides
+ * the profile name that would otherwise be inferred from it. Importing over an
+ * existing profile is a 400 rather than an overwrite.
+ */
+export function importProfile(body: {
+  archive: string
   name?: string
-  force?: boolean
-  create_alias?: boolean
-}): Promise<HermesProfileInstallResult> {
-  return request<HermesProfileInstallResult>('/api/profiles/install', {
+}): Promise<HermesProfileImportResult> {
+  return request<HermesProfileImportResult>('/api/profiles/import', {
     method: 'POST',
     body: JSON.stringify(body),
   })

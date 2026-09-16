@@ -10,21 +10,25 @@ import type {
 } from './types'
 
 /**
- * Maps employees (Hermes profiles) onto chat sessions.
+ * Maps an employee's *conversations* onto live gateway sessions.
  *
- * One session per employee, created lazily and reused. `session.create` binds
- * the profile for the session's whole life — `prompt.submit` has no profile
- * parameter — so getting this wrong once means every later message in that
- * thread goes to the wrong agent.
+ * An employee is a Hermes profile and a profile has many sessions — the TUI's,
+ * the desktop's, its routines', and one per conversation the user starts here.
+ * So the unit of address is a `ThreadRef`: the profile plus the DURABLE session
+ * id (`stored_session_id`, the `20260914_074402_74eb85` key that
+ * `GET /api/sessions` also calls `id`). That key is what the URL carries, which
+ * is why a thread survives a reload, a reconnect and a tab share.
  *
- * Opening a session RESUMES the employee's most recent conversation and only
- * creates one when there is nothing to resume. That is what makes a thread
- * survive a reload, and it is not merely cosmetic: `session.create` mints a
- * fresh `stored_session_id` (`_new_session_key()` in `tui_gateway/server.py`)
- * and `session.history` reads the transcript by that key, so a created session
- * is empty by construction and no amount of re-reading history will fill it.
- * Creating on every open also gave the agent a blank context each time, so an
- * employee could not remember what it had just been told.
+ * `session.create` binds the profile for the session's whole life —
+ * `prompt.submit` has no profile parameter — so getting the binding wrong once
+ * means every later message in that thread goes to the wrong agent.
+ *
+ * Opening a ref RESUMES that conversation; it never creates. Creating is now an
+ * explicit act (`createSession`, behind "New session") rather than a fallback,
+ * because a silent create is indistinguishable from a resume that failed and
+ * `session.create` mints a fresh key — so the old conversation is still on disk
+ * and the user is simply no longer in it. Starting a session the user did not
+ * ask for is how a thread forks and a transcript appears to vanish.
  */
 
 /** `session not found` — the only error that means "nothing to resume". */
@@ -62,22 +66,38 @@ export class UnknownProfileError extends Error {
   }
 }
 
-interface SessionEntry {
-  sessionId: string
+export class SessionNotFoundError extends Error {
+  constructor(readonly ref: ThreadRef) {
+    super(
+      `Session "${ref.sessionId}" does not exist for employee "${ref.profile}". ` +
+        `It may have been deleted, or the link may be from another machine.`,
+    )
+    this.name = 'SessionNotFoundError'
+  }
+}
+
+/** The durable address of one conversation: an employee plus a stored session key. */
+export interface ThreadRef {
   profile: string
-  storedSessionId?: string
+  /** `stored_session_id` — the durable key, and what the URL carries. */
+  sessionId: string
+}
+
+/** Map key for a ref. NUL cannot occur in a profile name or a session key. */
+export function refKey(ref: ThreadRef): string {
+  return `${ref.profile}\u0000${ref.sessionId}`
+}
+
+interface SessionEntry extends ThreadRef {
+  /** The short-lived gateway id. Stale after a reconnect; the ref is not. */
+  liveId: string
 }
 
 export class SessionManager {
-  private readonly byProfile = new Map<string, SessionEntry>()
+  private readonly byRef = new Map<string, SessionEntry>()
   private readonly inFlight = new Map<string, Promise<SessionEntry>>()
-  /**
-   * The durable key of the conversation each employee is *in*, kept across a
-   * `reset()` on purpose. A reconnect must land back in the thread the user was
-   * reading, and "newest on disk" is not that thread if one of the employee's
-   * routines happened to run while the socket was down.
-   */
-  private readonly lastStored = new Map<string, string>()
+  /** Reverse index for inbound events, which carry only the live id. */
+  private readonly byLiveId = new Map<string, ThreadRef>()
   private knownProfiles: string[] | null = null
 
   constructor(
@@ -85,133 +105,40 @@ export class SessionManager {
     private readonly profiles: KnownProfileSource,
   ) {}
 
-  /** Reverse lookup: which employee does an inbound event belong to? */
-  profileForSession(sessionId: string): string | undefined {
-    for (const entry of this.byProfile.values()) {
-      if (entry.sessionId === sessionId) return entry.profile
-    }
-    return undefined
+  /** Which conversation does an inbound event belong to? */
+  refForSession(liveId: string): ThreadRef | undefined {
+    return this.byLiveId.get(liveId)
   }
 
-  sessionIdFor(profile: string): string | undefined {
-    return this.byProfile.get(profile)?.sessionId
+  /** The live gateway id for a ref, if it is currently open. */
+  liveIdFor(ref: ThreadRef): string | undefined {
+    return this.byRef.get(refKey(ref))?.liveId
   }
 
   /**
-   * Drop cached sessions. Used after a reconnect, where the short-lived
-   * `session_id`s are stale. `lastStored` survives: the durable keys are still
-   * valid, and they are how the next open reattaches instead of forking.
+   * Drop cached live sessions after a reconnect, where every `session_id` is
+   * stale. Nothing durable is lost: a ref is the address, and the open thread
+   * re-resumes from the one in its URL.
    */
   reset(): void {
-    this.byProfile.clear()
+    this.byRef.clear()
     this.inFlight.clear()
+    this.byLiveId.clear()
   }
 
   invalidateProfileCache(): void {
     this.knownProfiles = null
   }
 
-  async ensureSession(profile: string): Promise<string> {
-    const existing = this.byProfile.get(profile)
-    if (existing) return existing.sessionId
-
-    const pending = this.inFlight.get(profile)
-    if (pending) return (await pending).sessionId
-
-    const opening = this.openSession(profile)
-    this.inFlight.set(profile, opening)
-    try {
-      const entry = await opening
-      return entry.sessionId
-    } finally {
-      this.inFlight.delete(profile)
-    }
-  }
-
-  /** Reattach to this employee's last conversation, or start their first. */
-  private async openSession(profile: string): Promise<SessionEntry> {
+  /**
+   * Start a new conversation and return its durable key for the URL.
+   *
+   * Only ever called from an explicit "new session" action. Nothing resumes
+   * into a created session, so an accidental call strands the user in an empty
+   * thread while their real one sits on disk.
+   */
+  async createSession(profile: string): Promise<string> {
     await this.assertProfileExists(profile)
-    return (await this.resumeLatest(profile)) ?? (await this.createSession(profile))
-  }
-
-  /**
-   * Reattach to this employee's conversation: the one they were last in, else
-   * the newest one on disk. Null means there is genuinely nothing to resume.
-   *
-   * Fails CLOSED on anything that is not 4007. A network blip read as "no
-   * session" would mint a second session for an employee that already has one,
-   * forking the thread and orphaning everything said in it — the same reasoning
-   * `ensureGroupSession` documents for rooms. The caller surfaces the error;
-   * `chat-store` puts it on the thread or on the unsent message.
-   */
-  private async resumeLatest(profile: string): Promise<SessionEntry | null> {
-    for (const target of await this.resumeCandidates(profile)) {
-      const entry = await this.resumeStored(profile, target)
-      if (entry) return entry
-    }
-    return null
-  }
-
-  /**
-   * Durable keys to try, best first, deduped.
-   *
-   * The listing is skipped entirely when we already know where this employee
-   * was — the common reconnect case, and one fewer round trip on it.
-   */
-  private async resumeCandidates(profile: string): Promise<string[]> {
-    const remembered = this.lastStored.get(profile)
-    if (remembered) return [remembered]
-
-    const listed = await this.gateway.request<SessionListResult>('session.list', {
-      profile,
-      limit: SESSION_LOOKBACK,
-    })
-    const rows = listed?.sessions ?? []
-    // Ours first, then anything: a profile also accumulates sessions from the
-    // TUI, the desktop and its own routines, and splicing a cron run into the
-    // user's chat is worse than starting one row lower down the list.
-    const ordered = [
-      ...rows.filter((row) => row.source === SESSION_SOURCE),
-      ...rows.filter((row) => row.source !== SESSION_SOURCE),
-    ]
-    return [...new Set(ordered.map((row) => row.resolved_id || row.id).filter(Boolean))]
-  }
-
-  /**
-   * `omit_messages` because the transcript arrives through `session.history`,
-   * which reads the DB with `include_ancestors` and `include_row_ids` and so
-   * answers with strictly more than the resume projection carries.
-   */
-  private async resumeStored(profile: string, target: string): Promise<SessionEntry | null> {
-    try {
-      const result = await this.gateway.request<SessionResumeResult>('session.resume', {
-        session_id: target,
-        profile,
-        cols: SESSION_COLS,
-        omit_messages: true,
-      })
-      if (!result?.session_id) return null
-      // A resume answers `stored_session_id: null` — it reports the durable key
-      // as `session_key` and `resumed` instead. The key we asked with is that
-      // key, so keep it rather than losing the address on the next reconnect.
-      return this.remember({
-        sessionId: result.session_id,
-        profile,
-        storedSessionId: result.stored_session_id || target,
-      })
-    } catch (error) {
-      if (error instanceof HermesRpcError && error.code === SESSION_ABSENT_CODE) return null
-      throw error
-    }
-  }
-
-  private remember(entry: SessionEntry): SessionEntry {
-    this.byProfile.set(entry.profile, entry)
-    if (entry.storedSessionId) this.lastStored.set(entry.profile, entry.storedSessionId)
-    return entry
-  }
-
-  private async createSession(profile: string): Promise<SessionEntry> {
     const result = await this.gateway.request<SessionCreateResult>('session.create', {
       profile,
       cols: SESSION_COLS,
@@ -221,12 +148,108 @@ export class SessionManager {
     if (!result?.session_id) {
       throw new Error(`session.create for "${profile}" returned no session_id`)
     }
+    /*
+     * The durable key is the whole point of the call here: without it there is
+     * no address to navigate to, and the session would be reachable only for as
+     * long as this socket lives.
+     */
+    if (!result.stored_session_id) {
+      throw new Error(
+        `session.create for "${profile}" returned no stored_session_id, so the new ` +
+          `session has no durable address to open.`,
+      )
+    }
 
-    return this.remember({
-      sessionId: result.session_id,
+    const ref = { profile, sessionId: result.stored_session_id }
+    this.remember({ ...ref, liveId: result.session_id })
+    return ref.sessionId
+  }
+
+  /**
+   * Open a conversation, returning its live gateway id.
+   *
+   * Deduped per ref: two components mounting the same thread must not both
+   * resume it, which would leave two live ids for one conversation and route
+   * half its events into a session nobody is reading.
+   */
+  async ensureSession(ref: ThreadRef): Promise<string> {
+    const key = refKey(ref)
+    const existing = this.byRef.get(key)
+    if (existing) return existing.liveId
+
+    const pending = this.inFlight.get(key)
+    if (pending) return (await pending).liveId
+
+    const opening = this.openSession(ref)
+    this.inFlight.set(key, opening)
+    try {
+      return (await opening).liveId
+    } finally {
+      this.inFlight.delete(key)
+    }
+  }
+
+  private async openSession(ref: ThreadRef): Promise<SessionEntry> {
+    await this.assertProfileExists(ref.profile)
+    const entry = await this.resumeStored(ref)
+    if (entry) return entry
+    /*
+     * A 4007 here means the key in the URL names nothing on this machine — a
+     * stale link, or a session deleted elsewhere. Creating one instead would
+     * silently answer a request for a specific conversation with a different,
+     * empty one.
+     */
+    throw new SessionNotFoundError(ref)
+  }
+
+  /**
+   * `omit_messages` because the transcript arrives through `session.history`,
+   * which reads the DB with `include_ancestors` and `include_row_ids` and so
+   * answers with strictly more than the resume projection carries.
+   *
+   * Fails CLOSED on anything that is not 4007: a network blip read as "no
+   * session" would strand a live conversation.
+   */
+  private async resumeStored(ref: ThreadRef): Promise<SessionEntry | null> {
+    try {
+      const result = await this.gateway.request<SessionResumeResult>('session.resume', {
+        session_id: ref.sessionId,
+        profile: ref.profile,
+        cols: SESSION_COLS,
+        omit_messages: true,
+      })
+      if (!result?.session_id) return null
+      return this.remember({ ...ref, liveId: result.session_id })
+    } catch (error) {
+      if (error instanceof HermesRpcError && error.code === SESSION_ABSENT_CODE) return null
+      throw error
+    }
+  }
+
+  /**
+   * The employee's most recent conversation, preferring ones this app started.
+   *
+   * A profile also accumulates sessions from the TUI, the desktop and its own
+   * routines, and dropping the user into a cron run reads as the agent having
+   * said things it never said to them.
+   */
+  async latestSessionId(profile: string): Promise<string | undefined> {
+    const listed = await this.gateway.request<SessionListResult>('session.list', {
       profile,
-      ...(result.stored_session_id ? { storedSessionId: result.stored_session_id } : {}),
+      limit: SESSION_LOOKBACK,
     })
+    const rows = listed?.sessions ?? []
+    const ordered = [
+      ...rows.filter((row) => row.source === SESSION_SOURCE),
+      ...rows.filter((row) => row.source !== SESSION_SOURCE),
+    ]
+    return ordered.map((row) => row.resolved_id || row.id).find(Boolean)
+  }
+
+  private remember(entry: SessionEntry): SessionEntry {
+    this.byRef.set(refKey(entry), entry)
+    this.byLiveId.set(entry.liveId, { profile: entry.profile, sessionId: entry.sessionId })
+    return entry
   }
 
   /**
@@ -248,36 +271,6 @@ export class SessionManager {
         throw new UnknownProfileError(profile, this.knownProfiles)
       }
     }
-  }
-
-  /** Reattach to one named conversation — a picker's entry point. */
-  async resume(profile: string, sessionId: string): Promise<SessionResumeResult> {
-    await this.assertProfileExists(profile)
-    const result = await this.gateway.request<SessionResumeResult>('session.resume', {
-      session_id: sessionId,
-      profile,
-      cols: SESSION_COLS,
-    })
-    this.remember({
-      sessionId: result.session_id ?? sessionId,
-      profile,
-      storedSessionId: result.stored_session_id || sessionId,
-    })
-    return result
-  }
-
-  async submit(profile: string, text: string): Promise<PromptSubmitResult> {
-    const sessionId = await this.ensureSession(profile)
-    return this.gateway.request<PromptSubmitResult>('prompt.submit', {
-      session_id: sessionId,
-      text,
-    })
-  }
-
-  async interrupt(profile: string): Promise<void> {
-    const sessionId = this.byProfile.get(profile)?.sessionId
-    if (!sessionId) return
-    await this.gateway.request('session.interrupt', { session_id: sessionId })
   }
 
   /**
@@ -302,12 +295,9 @@ export class SessionManager {
    * our session ids. `allow_expired=True` means a late answer resolves as
    * `{status: "expired"}` rather than erroring.
    *
-   * `profile` is not sent; it is taken so callers address employees the same way
-   * they do everywhere else in this class, and so a future session-scoped
-   * variant of the RPC needs no signature change at the call sites.
+   * No `profile` and no ref: the request id is the whole address.
    */
-  async answerClarify(profile: string, requestId: string, answer: string): Promise<void> {
-    void profile
+  async answerClarify(requestId: string, answer: string): Promise<void> {
     await this.gateway.request('clarify.respond', { request_id: requestId, answer })
   }
 
@@ -328,17 +318,15 @@ export class SessionManager {
    * `{status: "expired"}` rather than a raw 4009 — that is the race the
    * `secret.expire` event announces.
    *
-   * `profile` is not sent, for the same reason it is not sent on
-   * `answerClarify`: callers address employees the same way they do everywhere
-   * else in this class.
+   * No ref, for the same reason as `answerClarify`: the request id is the
+   * whole address.
    *
    * The value is forwarded verbatim and retained nowhere — no store, no log, no
    * error message. Hermes writes it to the profile's env file at 0600
    * (`save_env_value_secure`) and deliberately omits it from the tool result, so
    * the transcript never carries it either.
    */
-  async respondSecret(profile: string, requestId: string, value: string): Promise<void> {
-    void profile
+  async respondSecret(requestId: string, value: string): Promise<void> {
     await this.gateway.request('secret.respond', { request_id: requestId, value })
   }
 
@@ -361,13 +349,26 @@ export class SessionManager {
    * Sending nothing at all is NOT equivalent: the thread stays parked until
    * `_block`'s deadline, which is what a hang looks like to the user.
    */
-  async skipSecret(profile: string, requestId: string): Promise<void> {
-    void profile
+  async skipSecret(requestId: string): Promise<void> {
     await this.gateway.request('secret.respond', { request_id: requestId, value: '' })
   }
 
-  async history(profile: string): Promise<SessionHistoryResult> {
-    const sessionId = await this.ensureSession(profile)
+  async submit(ref: ThreadRef, text: string): Promise<PromptSubmitResult> {
+    const sessionId = await this.ensureSession(ref)
+    return this.gateway.request<PromptSubmitResult>('prompt.submit', {
+      session_id: sessionId,
+      text,
+    })
+  }
+
+  async interrupt(ref: ThreadRef): Promise<void> {
+    const sessionId = this.liveIdFor(ref)
+    if (!sessionId) return
+    await this.gateway.request('session.interrupt', { session_id: sessionId })
+  }
+
+  async history(ref: ThreadRef): Promise<SessionHistoryResult> {
+    const sessionId = await this.ensureSession(ref)
     return this.gateway.request<SessionHistoryResult>('session.history', {
       session_id: sessionId,
     })
@@ -378,8 +379,8 @@ export class SessionManager {
    * prompt. The attachment is not itself a message — it only exists once the
    * prompt referencing it is submitted.
    */
-  async attachFile(profile: string, dataUrl: string, name: string): Promise<FileAttachResult> {
-    const sessionId = await this.ensureSession(profile)
+  async attachFile(ref: ThreadRef, dataUrl: string, name: string): Promise<FileAttachResult> {
+    const sessionId = await this.ensureSession(ref)
     return this.gateway.request<FileAttachResult>('file.attach', {
       session_id: sessionId,
       data_url: dataUrl,

@@ -13,9 +13,10 @@ import { MessageBubble } from '../message-bubble'
 import { MessageError } from '../message-error'
 import { SystemEvent } from '../system-event'
 import { TimeSeparator } from '../time-separator'
+import { refKey, type ThreadRef } from '@/modules/core/services/hermes/session-manager'
 
 interface MessageListProps {
-  profile: string
+  thread: ThreadRef
   displayName: string
   messages: ChatMessage[]
   approval?: ApprovalRequest
@@ -28,7 +29,7 @@ interface MessageListProps {
 }
 
 export const MessageList: FC<MessageListProps> = ({
-  profile,
+  thread,
   displayName,
   messages,
   approval,
@@ -57,7 +58,7 @@ export const MessageList: FC<MessageListProps> = ({
 
   const { scrollRef, atBottom, scrollToBottom } = useStickToBottom<HTMLDivElement>(
     contentKey,
-    profile,
+    refKey(thread),
   )
 
   return (
@@ -75,7 +76,7 @@ export const MessageList: FC<MessageListProps> = ({
           <HireStrip />
 
           {messages.length === 0 && !error ? (
-            <EmptyState profile={profile} displayName={displayName} />
+            <EmptyState profile={thread.profile} displayName={displayName} />
           ) : (
             messages.map((message, index) => {
               const previous = messages[index - 1]
@@ -98,7 +99,7 @@ export const MessageList: FC<MessageListProps> = ({
           )}
 
           {approval && (
-            <ApprovalCard profile={profile} approval={approval} working={working} />
+            <ApprovalCard thread={thread} approval={approval} working={working} />
           )}
           {error && <MessageError text={error} />}
         </section>

@@ -9,9 +9,10 @@ import { useDisplayName } from '@/modules/core/hooks/use-identity'
 import { useEmployeeProfile } from '@/modules/core/hooks/use-employee-profile'
 import { useChatStore } from '@/modules/core/stores/chat-store'
 import { describeEmployeeState } from '@/modules/core/utils/employee-state'
+import { refKey, type ThreadRef } from '@/modules/core/services/hermes/session-manager'
 
 interface IdentityBlockProps {
-  profile: string
+  thread: ThreadRef
 }
 
 const DOT_TONE = {
@@ -37,13 +38,13 @@ const DOT_TONE = {
  * `Stop` appears only while a turn is in flight, because it is the only moment it means
  * anything. It is the store's own `stop`, the same interrupt the composer sends.
  */
-export const IdentityBlock: FC<IdentityBlockProps> = ({ profile }) => {
+export const IdentityBlock: FC<IdentityBlockProps> = ({ thread }) => {
   const [editing, setEditing] = useState(false)
-  const displayName = useDisplayName(profile)
-  const { data, isPending, isError } = useEmployeeProfile(profile)
+  const displayName = useDisplayName(thread.profile)
+  const { data, isPending, isError } = useEmployeeProfile(thread.profile)
 
-  const status = useChatStore((state) => state.threads[profile]?.status)
-  const statusText = useChatStore((state) => state.threads[profile]?.statusText)
+  const status = useChatStore((state) => state.threads[refKey(thread)]?.status)
+  const statusText = useChatStore((state) => state.threads[refKey(thread)]?.statusText)
   const connection = useChatStore((state) => state.connection)
   const stop = useChatStore((state) => state.stop)
 
@@ -62,7 +63,7 @@ export const IdentityBlock: FC<IdentityBlockProps> = ({ profile }) => {
           onClick={() => setEditing(true)}
           className="shrink-0 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
-          <EmployeeAvatar profile={profile} size={48} busy={isWorking} />
+          <EmployeeAvatar profile={thread.profile} size={48} busy={isWorking} />
         </button>
 
         <div className="flex min-w-0 flex-1 flex-col gap-1.5 pt-0.5">
@@ -78,7 +79,7 @@ export const IdentityBlock: FC<IdentityBlockProps> = ({ profile }) => {
             <span aria-hidden className="shrink-0 text-tertiary">
               ·
             </span>
-            <ModelPicker profile={profile} model={model} />
+            <ModelPicker profile={thread.profile} model={model} />
           </p>
         </div>
 
@@ -88,7 +89,7 @@ export const IdentityBlock: FC<IdentityBlockProps> = ({ profile }) => {
             size="sm"
             shape="pill"
             className="shrink-0"
-            onClick={() => void stop(profile)}
+            onClick={() => void stop(thread)}
           >
             Stop
           </Button>
@@ -108,7 +109,7 @@ export const IdentityBlock: FC<IdentityBlockProps> = ({ profile }) => {
       />
 
       {editing && (
-        <AppearanceDialog profile={profile} open={editing} onOpenChange={setEditing} />
+        <AppearanceDialog profile={thread.profile} open={editing} onOpenChange={setEditing} />
       )}
     </section>
   )
@@ -124,7 +125,7 @@ interface DescriptionProps {
 const Description: FC<DescriptionProps> = ({ isPending, isError, found, text }) => {
   if (isPending) return <Skeleton className="h-4 w-full bg-fill-elevated" />
 
-  // A failed roster call is not the same as a profile with nothing on it, so neither case is
+  // A failed roster call is not the same as a thread.profile with nothing on it, so neither case is
   // allowed to borrow the other's copy.
   if (isError) {
     return <p className="text-label-md text-tertiary">Couldn’t load this employee’s details.</p>

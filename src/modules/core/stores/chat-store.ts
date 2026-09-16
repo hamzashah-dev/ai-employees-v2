@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { GatewayEvent, ConnectionState } from '../services/hermes/gateway'
-import type { SessionManager } from '../services/hermes/session-manager'
+import { refKey, type SessionManager, type ThreadRef } from '../services/hermes/session-manager'
 import type {
   ApprovalRequest,
   ChatMessage,
@@ -42,8 +42,8 @@ function nextId(prefix: string): string {
   return `${prefix}-${messageSeq}`
 }
 
-function emptyThread(profile: string): EmployeeThread {
-  return { profile, messages: [], status: 'ready', hydrated: false }
+function emptyThread(ref: ThreadRef): EmployeeThread {
+  return { ...ref, messages: [], status: 'ready', hydrated: false }
 }
 
 function newMessage(role: MessageRole, text: string, idPrefix: string = role): ChatMessage {
@@ -65,20 +65,20 @@ interface ChatState {
 
   bind: (manager: SessionManager) => void
   setConnection: (state: ConnectionState, detail?: string) => void
-  ensureThread: (profile: string) => void
-  hydrate: (profile: string) => Promise<void>
+  ensureThread: (ref: ThreadRef) => void
+  hydrate: (ref: ThreadRef) => Promise<void>
   /** The read itself. Go through `hydrate`, which dedupes it. */
-  readHistory: (profile: string) => Promise<void>
-  send: (profile: string, text: string) => Promise<void>
-  stop: (profile: string) => Promise<void>
-  clearApproval: (profile: string) => void
-  answerClarify: (profile: string, text: string) => Promise<void>
+  readHistory: (ref: ThreadRef) => Promise<void>
+  send: (ref: ThreadRef, text: string) => Promise<void>
+  stop: (ref: ThreadRef) => Promise<void>
+  clearApproval: (ref: ThreadRef) => void
+  answerClarify: (ref: ThreadRef, text: string) => Promise<void>
   /**
    * `value` is a parameter and never state: it is forwarded to `secret.respond`
    * and dropped. Nothing about it is stored, logged or put in an error.
    */
-  submitSecret: (profile: string, value: string) => Promise<void>
-  skipSecret: (profile: string) => Promise<void>
+  submitSecret: (ref: ThreadRef, value: string) => Promise<void>
+  skipSecret: (ref: ThreadRef) => Promise<void>
   applyEvent: (event: GatewayEvent) => void
 }
 
@@ -125,39 +125,42 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ connection, connectionDetail: detail })
   },
 
-  ensureThread: (profile) => {
-    if (get().threads[profile]) return
-    set((state) => ({ threads: { ...state.threads, [profile]: emptyThread(profile) } }))
+  ensureThread: (ref) => {
+    const key = refKey(ref)
+    if (get().threads[key]) return
+    set((state) => ({ threads: { ...state.threads, [key]: emptyThread(ref) } }))
   },
 
-  hydrate: async (profile) => {
-    get().ensureThread(profile)
-    if (get().threads[profile]?.hydrated) return
+  hydrate: async (ref) => {
+    const key = refKey(ref)
+    get().ensureThread(ref)
+    if (get().threads[key]?.hydrated) return
     if (!sessions) return
 
-    const running = hydrating.get(profile)
+    const running = hydrating.get(refKey(ref))
     if (running) return running
 
-    const read = get().readHistory(profile)
-    hydrating.set(profile, read)
+    const read = get().readHistory(ref)
+    hydrating.set(refKey(ref), read)
     try {
       await read
     } finally {
-      hydrating.delete(profile)
+      hydrating.delete(refKey(ref))
     }
   },
 
-  readHistory: async (profile) => {
+  readHistory: async (ref) => {
+    const key = refKey(ref)
     if (!sessions) return
 
     try {
-      const result = await sessions.history(profile)
+      const result = await sessions.history(ref)
       const messages = toChatMessages(result.messages ?? [])
       set((state) => ({
         threads: {
           ...state.threads,
-          [profile]: {
-            ...(state.threads[profile] ?? emptyThread(profile)),
+          [key]: {
+            ...(state.threads[key] ?? emptyThread(ref)),
             messages,
             hydrated: true,
             error: undefined,
@@ -168,8 +171,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set((state) => ({
         threads: {
           ...state.threads,
-          [profile]: {
-            ...(state.threads[profile] ?? emptyThread(profile)),
+          [key]: {
+            ...(state.threads[key] ?? emptyThread(ref)),
             hydrated: true,
             error: (err as Error).message,
           },
@@ -178,21 +181,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  send: async (profile, text) => {
+  send: async (ref, text) => {
+    const key = refKey(ref)
     const trimmed = text.trim()
     if (!trimmed || !sessions) return
 
-    get().ensureThread(profile)
+    get().ensureThread(ref)
     const userMessage = newMessage('user', trimmed)
 
     // Optimistic: the user's own words appear immediately. If the submit fails
     // the message stays and carries the error, rather than vanishing.
     set((state) => {
-      const thread = state.threads[profile] ?? emptyThread(profile)
+      const thread = state.threads[key] ?? emptyThread(ref)
       return {
         threads: {
           ...state.threads,
-          [profile]: {
+          [key]: {
             ...thread,
             messages: [...thread.messages, userMessage],
             status: 'working',
@@ -204,14 +208,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
     })
 
     try {
-      await sessions.submit(profile, trimmed)
+      await sessions.submit(ref, trimmed)
     } catch (err) {
       set((state) => {
-        const thread = state.threads[profile] ?? emptyThread(profile)
+        const thread = state.threads[key] ?? emptyThread(ref)
         return {
           threads: {
             ...state.threads,
-            [profile]: {
+            [key]: {
               ...thread,
               status: 'error',
               workingSince: undefined,
@@ -225,18 +229,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  stop: async (profile) => {
+  stop: async (ref) => {
+    const key = refKey(ref)
     if (!sessions) return
     try {
-      await sessions.interrupt(profile)
+      await sessions.interrupt(ref)
     } finally {
       set((state) => {
-        const thread = state.threads[profile]
+        const thread = state.threads[key]
         if (!thread) return state
         return {
           threads: {
             ...state.threads,
-            [profile]: {
+            [key]: {
               ...thread,
               status: 'ready',
               workingSince: undefined,
@@ -250,9 +255,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  clearApproval: (profile) => {
+  clearApproval: (ref) => {
+    const key = refKey(ref)
     set((state) => {
-      const thread = state.threads[profile]
+      const thread = state.threads[key]
       if (!thread) return state
       const next: EmployeeThread = { ...thread, approval: undefined }
       // An open clarify or secret request is the other thing that owns
@@ -260,7 +266,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (thread.status === 'needs-you' && !thread.clarify && !thread.secret) {
         next.status = 'working'
       }
-      return { threads: { ...state.threads, [profile]: next } }
+      return { threads: { ...state.threads, [key]: next } }
     })
   },
 
@@ -269,28 +275,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
    * blocked inside `_block()` until this lands, so this is the only way out
    * other than the (configurable, 1h-by-default, possibly infinite) timeout.
    */
-  answerClarify: async (profile, text) => {
-    const request = get().threads[profile]?.clarify
+  answerClarify: async (ref, text) => {
+    const key = refKey(ref)
+    const request = get().threads[key]?.clarify
     if (!request || !sessions) return
     try {
-      await sessions.answerClarify(profile, request.requestId, text)
+      await sessions.answerClarify(request.requestId, text)
     } catch (err) {
       // Leave the card standing: the agent is still parked, so the human's only
       // way through is to try again.
       set((state) => {
-        const thread = state.threads[profile]
+        const thread = state.threads[key]
         if (!thread) return state
         return {
-          threads: { ...state.threads, [profile]: { ...thread, error: (err as Error).message } },
+          threads: { ...state.threads, [key]: { ...thread, error: (err as Error).message } },
         }
       })
       return
     }
     set((state) => {
-      const thread = state.threads[profile]
+      const thread = state.threads[key]
       // A second clarify may already have replaced this one.
       if (!thread || thread.clarify?.requestId !== request.requestId) return state
-      return { threads: { ...state.threads, [profile]: clearClarify(thread) } }
+      return { threads: { ...state.threads, [key]: clearClarify(thread) } }
     })
   },
 
@@ -305,29 +312,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
    * secret is not in the tool result either — Hermes asserts that server-side —
    * so the transcript truthfully never carries it.
    */
-  submitSecret: async (profile, value) => {
-    const request = get().threads[profile]?.secret
+  submitSecret: async (ref, value) => {
+    const key = refKey(ref)
+    const request = get().threads[key]?.secret
     if (!request || !sessions) return
     try {
-      await sessions.respondSecret(profile, request.requestId, value)
+      await sessions.respondSecret(request.requestId, value)
     } catch (err) {
       // Leave the card standing: the agent is still parked, so retrying is the
       // human's only way through. The message is the transport's, never the
       // value — a failed send must not turn the secret into rendered state.
       set((state) => {
-        const thread = state.threads[profile]
+        const thread = state.threads[key]
         if (!thread) return state
         return {
-          threads: { ...state.threads, [profile]: { ...thread, error: (err as Error).message } },
+          threads: { ...state.threads, [key]: { ...thread, error: (err as Error).message } },
         }
       })
       return
     }
     set((state) => {
-      const thread = state.threads[profile]
+      const thread = state.threads[key]
       // A second request may already have replaced this one.
       if (!thread || thread.secret?.requestId !== request.requestId) return state
-      return { threads: { ...state.threads, [profile]: clearSecret(thread) } }
+      return { threads: { ...state.threads, [key]: clearSecret(thread) } }
     })
   },
 
@@ -337,41 +345,78 @@ export const useChatStore = create<ChatState>((set, get) => ({
    * simply closing the card would leave it parked — which is what a hang looks
    * like from the outside.
    */
-  skipSecret: async (profile) => {
-    const request = get().threads[profile]?.secret
+  skipSecret: async (ref) => {
+    const key = refKey(ref)
+    const request = get().threads[key]?.secret
     if (!request || !sessions) return
     try {
-      await sessions.skipSecret(profile, request.requestId)
+      await sessions.skipSecret(request.requestId)
     } catch (err) {
       set((state) => {
-        const thread = state.threads[profile]
+        const thread = state.threads[key]
         if (!thread) return state
         return {
-          threads: { ...state.threads, [profile]: { ...thread, error: (err as Error).message } },
+          threads: { ...state.threads, [key]: { ...thread, error: (err as Error).message } },
         }
       })
       return
     }
     set((state) => {
-      const thread = state.threads[profile]
+      const thread = state.threads[key]
       if (!thread || thread.secret?.requestId !== request.requestId) return state
-      return { threads: { ...state.threads, [profile]: clearSecret(thread) } }
+      return { threads: { ...state.threads, [key]: clearSecret(thread) } }
     })
   },
 
   applyEvent: (event) => {
     if (!event.sessionId || !sessions) return
-    const profile = sessions.profileForSession(event.sessionId)
-    if (!profile) return // An event for a session we do not own.
+    /*
+     * Events carry only the short-lived gateway id, so the reverse index is the
+     * only way to know WHICH of an employee's conversations this belongs to.
+     * Resolving to the profile alone — as this did while a profile had one
+     * thread — now splices every session's deltas into whichever thread was
+     * open.
+     */
+    const ref = sessions.refForSession(event.sessionId)
+    if (!ref) return // An event for a session we do not own.
 
     set((state) => {
-      const thread = state.threads[profile] ?? emptyThread(profile)
+      const key = refKey(ref)
+      const thread = state.threads[key] ?? emptyThread(ref)
       const next = reduceEvent(thread, event)
       if (next === thread) return state
-      return { threads: { ...state.threads, [profile]: next } }
+      return { threads: { ...state.threads, [key]: next } }
     })
   },
 }))
+
+// ----------------------------------------------------------------- selectors
+
+/**
+ * Every open thread belonging to one employee.
+ *
+ * The sidebar, the panel and the nav indicator ask "what is this employee
+ * doing", which stopped being a single thread the moment an employee could
+ * hold several conversations at once.
+ */
+export function selectEmployeeThreads(state: ChatState, profile: string): EmployeeThread[] {
+  return Object.values(state.threads).filter((thread) => thread.profile === profile)
+}
+
+/**
+ * One status for an employee, folded from their threads, worst-first.
+ *
+ * `needs-you` outranks `working` because a parked agent is the one thing the
+ * user has to act on; an employee working in one session and blocked in another
+ * is blocked as far as the sidebar is concerned.
+ */
+export function selectEmployeeStatus(state: ChatState, profile: string): EmployeeStatus {
+  const statuses = selectEmployeeThreads(state, profile).map((thread) => thread.status)
+  for (const rank of ['needs-you', 'error', 'working'] as const) {
+    if (statuses.includes(rank)) return rank
+  }
+  return 'ready'
+}
 
 // ------------------------------------------------------------------ reducer
 

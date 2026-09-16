@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react'
 import type { ClarifyRequest } from '@/modules/core/services/hermes/types'
 import { useChatStore } from '@/modules/core/stores/chat-store'
 import type { ChatMessage, EmployeeThread, ToolCall } from '@/modules/core/types/chat'
+import { refKey, type ThreadRef } from '@/modules/core/services/hermes/session-manager'
 
 export interface BrowserView {
   /** noVNC page URL, or null when we have no live view (the usual case today). */
@@ -31,16 +32,16 @@ export interface BrowserView {
  * **`liveUrl` arrives late or not at all.** It rides on a `browser_navigate`
  * tool RESULT — there is no browser-session event and nothing to poll — so it
  * is null until the agent's first navigation of the session completes, and it
- * stays null for a profile whose browser tool is not camofox-backed or whose
+ * stays null for a thread whose browser tool is not camofox-backed or whose
  * VNC plugin reports `running: false`. Treat it as something you may not have
  * and render the no-live-view state; never guess an address.
  *
  * `agentBrowsing` and `clarify` are real, and come from state we already hold.
  */
-export function useBrowserView(profile: string): BrowserView {
-  const clarify = useChatStore((state) => state.threads[profile]?.clarify ?? null)
-  const liveUrl = useChatStore((state) => state.threads[profile]?.liveUrl ?? null)
-  const agentBrowsing = useChatStore((state) => isAgentBrowsing(state.threads[profile]))
+export function useBrowserView(thread: ThreadRef): BrowserView {
+  const clarify = useChatStore((state) => state.threads[refKey(thread)]?.clarify ?? null)
+  const liveUrl = useChatStore((state) => state.threads[refKey(thread)]?.liveUrl ?? null)
+  const agentBrowsing = useChatStore((state) => isAgentBrowsing(state.threads[refKey(thread)]))
   /*
    * The message is selected, the steps are derived.
    *
@@ -50,7 +51,7 @@ export function useBrowserView(profile: string): BrowserView {
    * which makes it a legal snapshot and `useMemo` the right place for the walk.
    */
   const current = useChatStore((state) => {
-    const messages = state.threads[profile]?.messages
+    const messages = state.threads[refKey(thread)]?.messages
     return messages?.[messages.length - 1]
   })
   const steps = useMemo(() => browserSteps(current), [current])
@@ -70,9 +71,9 @@ export function useBrowserView(profile: string): BrowserView {
   const answer = useCallback(
     (text: string) => {
       // Fire-and-forget at this level: the store owns both outcomes.
-      void answerClarify(profile, text)
+      void answerClarify(thread, text)
     },
-    [answerClarify, profile],
+    [answerClarify, thread],
   )
 
   return {

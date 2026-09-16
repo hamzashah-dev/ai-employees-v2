@@ -25,6 +25,8 @@ function toSummary(row: HermesSessionRow): SessionSummary | null {
     activityMs: ms,
     timeLabel: ms ? formatRosterTime(ms) : '',
     messageCount: row.message_count ?? 0,
+    unread: row.unread === true,
+    isActive: row.is_active === true,
   }
 }
 

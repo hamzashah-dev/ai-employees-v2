@@ -15,6 +15,7 @@ import {
   isHermesTarget,
   type HermesTarget,
 } from './src/modules/core/services/hermes/target'
+import { agentPacks } from './build/agent-packs'
 
 /**
  * `computer dashboard` injects a per-boot session token into the `index.html`
@@ -179,10 +180,23 @@ export default defineConfig(({ mode }) => {
 
   const target: HermesTarget = isHermesTarget(declared) ? declared : derived
 
+  /**
+   * Where the installable agent packs live.
+   *
+   * Two directories up is the cloud-computer checkout this app is a workspace
+   * of. Overridable because the port into imagine-computer-web moves this app
+   * out from under that checkout, and the packs will have to be pointed at
+   * rather than assumed.
+   */
+  const agentsDir = env.VITE_AGENTS_DIR
+    ? path.resolve(env.VITE_AGENTS_DIR)
+    : path.resolve(import.meta.dirname, '../../agents')
+
   return {
     plugins: [
       react(),
       tailwindcss(),
+      agentPacks({ agentsDir }),
       hermesDevToken(backend),
       verifyBackend(backend, target, expectedHome),
     ],

@@ -105,6 +105,14 @@ export type EmployeeStatus = 'ready' | 'working' | 'needs-you' | 'error'
 
 export interface EmployeeThread {
   profile: string
+  /**
+   * The durable session key this thread is, which is also what the URL carries.
+   *
+   * An employee has many conversations, so a thread is addressed by profile AND
+   * session — keying state by profile alone spliced every session's events into
+   * one transcript.
+   */
+  sessionId: string
   messages: ChatMessage[]
   status: EmployeeStatus
   /** Free text from `status.update`, e.g. "Researching 14 prospects". */

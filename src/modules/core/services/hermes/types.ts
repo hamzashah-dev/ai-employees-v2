@@ -421,20 +421,27 @@ export interface HermesEnvRequirement {
   default?: string
 }
 
-/** `POST /api/profiles/install` — see `installProfile` in rest.ts. */
-export interface HermesProfileInstallResult {
+/**
+ * `POST /api/profiles/import` — see `importProfile` in rest.ts.
+ *
+ * Deliberately thin, because the endpoint is. It reports where the profile
+ * landed and nothing else: no version, no description, and no `env_requires`.
+ * Anything an installed agent still needs has to come from the pack's own
+ * manifest on the client, because the import response will not tell you.
+ */
+export interface HermesProfileImportResult {
   ok: boolean
   name: string
   path: string
-  version: string
-  description: string
-  /** Where the pack came from, recorded so `profile update` can re-pull it. */
-  source: string
-  /** True when this overwrote an existing profile rather than creating one. */
-  updated: boolean
-  /** False if bundled-skill seeding failed; the profile is still installed. */
-  skills_seeded: boolean
-  env_requires: HermesEnvRequirement[]
+  /** The desktop appearance overlay, when the archive carried one. */
+  desktop: unknown | null
+}
+
+/** What every `/api/files` write answers with — mkdir, upload and delete alike. */
+export interface HermesManagedFileResult {
+  ok: boolean
+  path: string
+  entry?: HermesManagedFile
 }
 
 /**
@@ -460,6 +467,11 @@ export interface HermesSessionRow {
   profile_name?: string | null
   model?: string | null
   is_active?: boolean
+  /**
+   * Unread against `last_read_at`. Real, and the design's dot — not something
+   * this app derives.
+   */
+  unread?: boolean
   archived?: boolean | number
 }
 

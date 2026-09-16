@@ -23,6 +23,7 @@ const item = (label: string) => {
 }
 
 const thread = (profile: string, status: EmployeeStatus): EmployeeThread => ({
+  sessionId: 's1',
   profile,
   messages: [],
   hydrated: true,

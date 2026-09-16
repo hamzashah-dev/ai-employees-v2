@@ -35,5 +35,5 @@
       "@repo/utils/*": ["./src/repo-utils/*"]
     }
   },
-  "include": ["src", "vite.config.ts", "eslint.config.js"]
+  "include": ["src", "build", "vite.config.ts", "eslint.config.js"]
 }

@@ -3,9 +3,10 @@ import { Button } from '@repo/ui/button'
 import { useChatStore } from '@/modules/core/stores/chat-store'
 import type { ApprovalRequest } from '@/modules/core/types/chat'
 import { WorkingPill } from '../working-pill'
+import type { ThreadRef } from '@/modules/core/services/hermes/session-manager'
 
 interface ApprovalCardProps {
-  profile: string
+  thread: ThreadRef
   approval: ApprovalRequest
   /** The employee is still mid-turn behind the question. */
   working: boolean
@@ -19,8 +20,8 @@ interface ApprovalCardProps {
  * than hidden, because a person who believes they approved a spend and did not
  * is worse off than one who knows the control is inert.
  */
-export const ApprovalCard: FC<ApprovalCardProps> = ({ profile, approval, working }) => {
-  const dismiss = (): void => useChatStore.getState().clearApproval(profile)
+export const ApprovalCard: FC<ApprovalCardProps> = ({ thread, approval, working }) => {
+  const dismiss = (): void => useChatStore.getState().clearApproval(thread)
 
   return (
     <section

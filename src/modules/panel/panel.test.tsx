@@ -81,7 +81,7 @@ async function mount(onClose = vi.fn()): Promise<{ onClose: () => void }> {
   await act(async () => {
     render(
       <Providers>
-        <EmployeePanel profile="sales-outbound" onClose={onClose} />
+        <EmployeePanel thread={{ profile: 'sales-outbound', sessionId: 's1' }} onClose={onClose} />
       </Providers>,
     )
   })
@@ -252,8 +252,9 @@ describe('EmployeePanel', () => {
     stubFetch([JOB])
     useChatStore.setState({
       threads: {
-        'sales-outbound': {
+        ['sales-outbound\u0000s1']: {
           profile: 'sales-outbound',
+          sessionId: 's1',
           messages: [
             browsingMessage([
               { id: 't1', name: 'browser_navigate', label: 'Opening ads.google.com', status: 'done' },
@@ -283,8 +284,9 @@ describe('EmployeePanel', () => {
     useChatStore.setState({
       stop,
       threads: {
-        'sales-outbound': {
+        ['sales-outbound\u0000s1']: {
           profile: 'sales-outbound',
+          sessionId: 's1',
           messages: [],
           hydrated: true,
           status: 'working',
@@ -297,7 +299,7 @@ describe('EmployeePanel', () => {
     // The header says what is happening, and Stop exists only while it is.
     expect(screen.getByText('Sales Outbound is working')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Stop' }))
-    expect(stop).toHaveBeenCalledWith('sales-outbound')
+    expect(stop).toHaveBeenCalledWith({ profile: 'sales-outbound', sessionId: 's1' })
   })
 
   it('expands the live view over the conversation and minimizes it back', async () => {
@@ -305,8 +307,9 @@ describe('EmployeePanel', () => {
     stubFetch([JOB])
     useChatStore.setState({
       threads: {
-        'sales-outbound': {
+        ['sales-outbound\u0000s1']: {
           profile: 'sales-outbound',
+          sessionId: 's1',
           messages: [],
           hydrated: true,
           status: 'ready',

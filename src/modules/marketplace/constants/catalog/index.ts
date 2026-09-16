@@ -1,3 +1,4 @@
+import { AGENT_PACKS, type AgentPack } from 'virtual:agent-packs'
 import type { AgentCategory } from '../categories'
 import { CONNECTORS, type Connector, type ConnectorId } from '../connectors'
 
@@ -1545,35 +1546,69 @@ Voice: numerate, plain, comfortable saying the data will not support that.
     installs: 0,
     addedAt: '2026-08-28',
   },
+  {
+    /*
+     * Copy taken from the pack's own `distribution.yaml`, not written for the
+     * shelf — this agent had a pack before it had a card, and a paraphrase
+     * would be a second description to keep in step with the first.
+     */
+    id: 'seo-agent',
+    name: 'SEO Agent',
+    tagline: "Measures a site's findability, says what to fix, and what to target.",
+    category: 'Growth & Marketing',
+    runs: 0,
+    installs: 0,
+    addedAt: '2026-09-10',
+  },
 ]
 
 /**
  * The agents we actually have.
  *
- * `ENTRIES` is 97 rows of design canvas — names, taglines and display numbers
- * for a shelf that was mocked before the packs existed. Ninety-four of them
- * install a profile that then introduces itself as a composed approximation of
- * its own card, which reads as a broken product rather than a coming-soon one.
+ * `ENTRIES` is rows of design canvas — names, taglines and display numbers for
+ * a shelf that was mocked before the packs existed. Most of them would install
+ * a profile that then introduces itself as a composed approximation of its own
+ * card, which reads as a broken product rather than a coming-soon one.
  *
- * So the shelf is gated to the ids that have a real distribution pack under
- * `agents/<id>/` in the cloud-computer repo. Add an id here the same commit you
- * add its pack — the two are one change, and an id with no pack behind it is
- * the bug this gate exists to prevent.
+ * So the shelf is whatever the build actually packed out of `<repo>/agents/`,
+ * read straight from the generated manifest. This used to be a hand-kept list
+ * and it had drifted both ways at once: `competitor-watch` was offered with no
+ * pack behind it (a 400 at hire time), while `seo-agent` had a pack nobody
+ * could see. Deriving it means neither can happen again — adding a pack is the
+ * whole change.
  *
- * The other 93 entries stay in the file deliberately: they are the authored
- * copy for agents still to be built, and deleting them would mean writing them
+ * The unbuilt entries stay in the file deliberately: they are the authored copy
+ * for agents still to be written, and deleting them would mean writing them
  * again. Gating beats pruning.
  */
-export const AVAILABLE_AGENT_IDS: ReadonlySet<string> = new Set([
-  'ad-creator',
-  'competitor-watch',
-  'linkedin-agent',
-  'startup-kit-agent',
-])
+export const AVAILABLE_AGENT_IDS: ReadonlySet<string> = new Set(
+  AGENT_PACKS.map(({ id }) => id),
+)
 
-// `inbox-triage` has a pack at agents/inbox-triage/ but stays off the shelf
-// until connectors ship — its card requires Gmail and Slack as connectors. Add
-// the id in the commit that makes those real.
+/**
+ * A card for a pack that has no authored entry yet.
+ *
+ * A pack with no copy would otherwise be installable and invisible, which is
+ * the failure `seo-agent` actually sat in. Everything here is the pack's own
+ * `distribution.yaml` — its name, its description, and the date its source
+ * last changed — so the card states what the pack says about itself and
+ * nothing more.
+ *
+ * `category` is the exception and is a placeholder: a pack does not declare
+ * one, and the shelf needs some bucket to draw it in. Author a real entry in
+ * `ENTRIES` to put an agent where it belongs; that entry wins.
+ */
+function cardFromPack(pack: AgentPack): CatalogAgent {
+  return {
+    id: pack.id,
+    name: pack.name,
+    tagline: pack.description.replace(/\s+/g, ' ').trim(),
+    category: 'Business Ops',
+    runs: 0,
+    installs: 0,
+    addedAt: pack.updatedAt,
+  }
+}
 
 /**
  * Every authored entry, available or not.
@@ -1583,7 +1618,10 @@ export const AVAILABLE_AGENT_IDS: ReadonlySet<string> = new Set([
  * remain assertions about the authored copy rather than about how much of it
  * currently ships.
  */
-export const CATALOG: CatalogAgent[] = [...ENTRIES]
+export const CATALOG: CatalogAgent[] = [
+  ...ENTRIES,
+  ...AGENT_PACKS.filter((pack) => !ENTRIES.some(({ id }) => id === pack.id)).map(cardFromPack),
+]
 
 /**
  * What the marketplace actually shows: the entries with a pack behind them.

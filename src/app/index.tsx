@@ -1,6 +1,7 @@
 import {
   lazy,
   Suspense,
+  useMemo,
   useEffect,
   useRef,
   useState,
@@ -23,6 +24,7 @@ import { TopBar } from './components/top-bar'
 import { useIsLaptop } from '@/modules/core/hooks/media-query'
 import { useGroupPersistence } from '@/modules/core/hooks/use-group-persistence'
 import { useHermesConnection } from '@/modules/core/hooks/use-hermes'
+import { refKey } from '@/modules/core/services/hermes/session-manager'
 import { useChatStore } from '@/modules/core/stores/chat-store'
 import { useGroupCreateStore } from '@/modules/core/stores/group-create-store'
 import { useWorkspaceGalleryStore } from '@/modules/core/stores/workspace-gallery-store'
@@ -74,11 +76,6 @@ const RoutinesView = lazy(() =>
 const SessionsListView = lazy(() =>
   import('@/modules/sessions').then((m) => ({ default: m.SessionsListView })),
 )
-const SessionDetailView = lazy(() =>
-  import('@/modules/sessions/usecases/session').then((m) => ({
-    default: m.SessionDetailView,
-  })),
-)
 const WorkspaceMediaDialog = lazy(() =>
   import('@/modules/workspace').then((m) => ({ default: m.WorkspaceMediaDialog })),
 )
@@ -109,7 +106,16 @@ interface PageProps {
  * avatar, name and the panel toggle.
  */
 const EmployeeRoute: FC<PageProps> = ({ onOpenSidebar }) => {
-  const { profile } = useParams<{ profile: string }>()
+  const { profile, sessionId } = useParams<{ profile: string; sessionId: string }>()
+  /*
+   * The URL is the address of a conversation, not just of an employee. Built
+   * with useMemo so the object identity is stable across renders — `useThread`
+   * hydrates off it, and a fresh object each render would re-hydrate forever.
+   */
+  const threadRef = useMemo(
+    () => (profile && sessionId ? { profile, sessionId } : undefined),
+    [profile, sessionId],
+  )
   const [panelOpen, setPanelOpen] = useState(false)
   const isLaptop = useIsLaptop()
 
@@ -125,7 +131,7 @@ const EmployeeRoute: FC<PageProps> = ({ onOpenSidebar }) => {
    * unmounted and cannot watch anything.
    */
   const needsPanel = useChatStore((state) => {
-    const thread = state.threads[profile ?? '']
+    const thread = threadRef ? state.threads[refKey(threadRef)] : undefined
     return isAgentBrowsing(thread) || thread?.clarify != null
   })
 
@@ -147,7 +153,7 @@ const EmployeeRoute: FC<PageProps> = ({ onOpenSidebar }) => {
    * just closed.
    */
   const isTurnOver = useChatStore((state) => {
-    const status = state.threads[profile ?? '']?.status ?? 'ready'
+    const status = (threadRef ? state.threads[refKey(threadRef)]?.status : undefined) ?? 'ready'
     return status !== 'working' && status !== 'needs-you'
   })
 
@@ -161,13 +167,15 @@ const EmployeeRoute: FC<PageProps> = ({ onOpenSidebar }) => {
     if (isLaptop) setPanelOpen(true)
   }, [needsPanel, isTurnOver, isLaptop])
 
-  if (!profile) return <Navigate to={ROUTES.EMPLOYEES} replace />
+  if (!profile || !sessionId || !threadRef) return <Navigate to={ROUTES.EMPLOYEES} replace />
 
   return (
     <div className="flex min-h-0 flex-1">
       <ThreadView
-        key={profile}
-        profile={profile}
+        /* Remount on a session switch: a transcript must not animate from the
+           previous conversation's scroll position into this one's. */
+        key={refKey(threadRef)}
+        threadRef={threadRef}
         panelOpen={panelOpen}
         onTogglePanel={() => setPanelOpen((open) => !open)}
         onOpenPanel={() => setPanelOpen(true)}
@@ -175,7 +183,7 @@ const EmployeeRoute: FC<PageProps> = ({ onOpenSidebar }) => {
       />
       {panelOpen && (
         <EmployeePanel
-          profile={profile}
+          thread={threadRef}
           onClose={() => {
             dismissed.current = true
             setPanelOpen(false)
@@ -183,6 +191,14 @@ const EmployeeRoute: FC<PageProps> = ({ onOpenSidebar }) => {
         />
       )}
     </div>
+  )
+}
+
+/** `/employees/:profile/sessions` used to be the list; it is now the employee itself. */
+const RedirectToEmployee: FC = () => {
+  const { profile } = useParams<{ profile: string }>()
+  return (
+    <Navigate to={profile ? `${ROUTES.EMPLOYEES}/${encodeURIComponent(profile)}` : ROUTES.EMPLOYEES} replace />
   )
 }
 
@@ -274,9 +290,18 @@ const Shell: FC = () => {
                   </Page>
                 }
               />
+              {/*
+                An employee's own route is their SESSION LIST, not a chat. An
+                employee holds many conversations, so there is no single "their
+                thread" to land on — picking one would silently hide the rest.
+              */}
               <Route
                 path={`${ROUTES.EMPLOYEES}/:profile`}
-                element={<EmployeeRoute onOpenSidebar={openSidebar} />}
+                element={
+                  <Page onOpenSidebar={openSidebar}>
+                    <SessionsListView />
+                  </Page>
+                }
               />
 
               {/*
@@ -284,19 +309,22 @@ const Shell: FC = () => {
                 panel dialog like the workspace gallery: a session's own transcript is a page
                 worth linking to, not a glance.
               */}
+              {/* The list moved up to the employee's own route; keep old links working. */}
               <Route
                 path={`${ROUTES.EMPLOYEES}/:profile/sessions`}
-                element={
-                  <Page title="Sessions" onOpenSidebar={openSidebar}>
-                    <SessionsListView />
-                  </Page>
-                }
+                element={<RedirectToEmployee />}
               />
+              {/*
+                One conversation, live. This is the thread: it resumes the
+                session named in the URL and submits into that same session, so
+                a reload, a shared link and a reconnect all land in the same
+                place.
+              */}
               <Route
                 path={`${ROUTES.EMPLOYEES}/:profile/sessions/:sessionId`}
                 element={
-                  <Page title="Sessions" onOpenSidebar={openSidebar}>
-                    <SessionDetailView />
+                  <Page onOpenSidebar={openSidebar}>
+                    <EmployeeRoute onOpenSidebar={openSidebar} />
                   </Page>
                 }
               />

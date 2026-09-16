@@ -3,11 +3,13 @@
  * what a session-list row actually draws.
  *
  * Deliberately carries nothing this app cannot back with a real Hermes field.
- * The canvas's own s34 draws "Allow"/"Review" actions and a live "Working
- * now" badge on individual rows — `HermesSessionRow` has no approval-pending
- * flag and no per-session running state (only `chat-store`'s live, per-
- * *profile* status does, via the gateway socket), so neither is modelled
- * here. See `modules/sessions/index.tsx` for how the honest substitute reads.
+ * `unread` and `is_active` ARE real columns — an earlier note here said they
+ * were not, and that was wrong; the row carries both, alongside `title`. What
+ * is genuinely absent is any per-session approval state, so the canvas's
+ * "Allow" and "Review" buttons have nothing behind them for a historical row:
+ * `approval.pending` takes a LIVE session id, so a pending approval only
+ * exists for a session that is running and blocked right now. Those two
+ * affordances are therefore not modelled.
  */
 export interface SessionSummary {
   /** `resolved_id` when the row carries one, else `id` — the key a resume call wants. */
@@ -18,6 +20,10 @@ export interface SessionSummary {
   activityMs: number
   timeLabel: string
   messageCount: number
+  /** `unread` — the design's dot. Hermes maintains it against `last_read_at`. */
+  unread: boolean
+  /** `is_active` — mid-turn right now, which is the design's "Working now". */
+  isActive: boolean
 }
 
 /** A row grouped for the list — "Today", "This month", or an older bucket. */

@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { useChatStore } from '@/modules/core/stores/chat-store'
 import type { SecretRequest } from '@/modules/core/types/chat'
 import { secretLabel } from '../../utils/secret-label'
+import { refKey, type ThreadRef } from '@/modules/core/services/hermes/session-manager'
 
 export interface SecretRequestState {
   /** The standing request, or undefined when the agent is not asking for one. */
@@ -34,15 +35,16 @@ export interface SecretRequestState {
  * hold nothing worth leaking — a property only preserved by not adding a place
  * to hold it.
  */
-export function useSecretRequest(profile: string): SecretRequestState {
-  const request = useChatStore((state) => state.threads[profile]?.secret)
+export function useSecretRequest(ref: ThreadRef): SecretRequestState {
+  const key = refKey(ref)
+  const request = useChatStore((state) => state.threads[key]?.secret)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const submit = useCallback(
     async (value: string) => {
       setIsSubmitting(true)
       try {
-        await useChatStore.getState().submitSecret(profile, value)
+        await useChatStore.getState().submitSecret(ref, value)
       } finally {
         // The card unmounts on success — the store clears the request — so this
         // only ever matters on the failure path, where the card stays standing
@@ -50,17 +52,17 @@ export function useSecretRequest(profile: string): SecretRequestState {
         setIsSubmitting(false)
       }
     },
-    [profile],
+    [ref],
   )
 
   const skip = useCallback(async () => {
     setIsSubmitting(true)
     try {
-      await useChatStore.getState().skipSecret(profile)
+      await useChatStore.getState().skipSecret(ref)
     } finally {
       setIsSubmitting(false)
     }
-  }, [profile])
+  }, [ref])
 
   return {
     request,

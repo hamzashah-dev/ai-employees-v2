@@ -4,7 +4,7 @@ import { AlertTriangleIcon } from '@repo/icons/alert-triangle'
 import { cn } from '@repo/ui/cn'
 import { WithTooltip } from '@repo/ui/tooltip'
 import { Spinner } from '@/modules/core/components/spinner'
-import { SparkleEmployeeAvatar } from '@/modules/core/components/sparkle-employee-avatar'
+import { EmployeeAvatar } from '@/modules/core/components/employee-avatar'
 import { useSidebarCollapsed } from '../../contexts/sidebar-collapsed'
 import type { RosterEntry } from '../../types'
 import { useRosterRow } from './hooks/use-roster-row'
@@ -53,23 +53,15 @@ export const RosterRow: FC<RosterRowProps> = ({ entry }) => {
               )
             }
           >
-            <SparkleEmployeeAvatar profile={entry.profile} size={28} />
+            <EmployeeAvatar profile={entry.profile} size={28} busy={isWorking} />
             {/*
-              `SparkleMark` has no working face — the design's three variants carry no busy
-              state — so the collapsed rail needs its own honest signal instead of losing the
-              one the capped avatar used to carry. A real `Spinner`, not a fabricated avatar
-              expression, and first in the corner's priority since it is the most transient of
-              the three.
+              The avatar draws its own working face again, so the corner badge no longer
+              doubles as the busy signal — it only stands in for the states the face cannot
+              show. It was added when the rail used `SparkleMark`, which carries no busy
+              state; `BotMark` does, and two indicators for one condition read as two things
+              happening.
             */}
-            {isWorking ? (
-              <span
-                role="img"
-                aria-label={`${entry.displayName} is working`}
-                className="absolute -right-0.5 -bottom-0.5 flex size-3.5 shrink-0 items-center justify-center rounded-full bg-fill-elevated"
-              >
-                <Spinner className="size-2.5 text-secondary" />
-              </span>
-            ) : needsUser ? (
+            {needsUser ? (
               <AlertTriangleIcon className="absolute -right-0.5 -bottom-0.5 size-3.5 shrink-0 text-warning" />
             ) : (
               isUnread && (
@@ -97,7 +89,7 @@ export const RosterRow: FC<RosterRowProps> = ({ entry }) => {
           )
         }
       >
-        <SparkleEmployeeAvatar profile={entry.profile} />
+        <EmployeeAvatar profile={entry.profile} busy={isWorking} />
 
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="flex items-center justify-between gap-2">

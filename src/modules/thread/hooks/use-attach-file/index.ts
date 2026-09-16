@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { getHermes } from '@/modules/core/hooks/use-hermes'
+import type { ThreadRef } from '@/modules/core/services/hermes/session-manager'
 
 /**
  * Attaching a file to the next message.
@@ -29,7 +30,7 @@ function readAsDataUrl(file: File): Promise<string> {
   })
 }
 
-export function useAttachFile(profile: string): UseAttachFileResult {
+export function useAttachFile(thread: ThreadRef): UseAttachFileResult {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
   // Guards against a second pick landing while the first is still uploading.
@@ -52,7 +53,7 @@ export function useAttachFile(profile: string): UseAttachFileResult {
 
       try {
         const dataUrl = await readAsDataUrl(file)
-        const result = await getHermes().sessions.attachFile(profile, dataUrl, file.name)
+        const result = await getHermes().sessions.attachFile(thread, dataUrl, file.name)
         const ref = result.ref_text?.trim()
         if (!ref) {
           setError(`${file.name} was not attached — Hermes returned no reference.`)
@@ -67,7 +68,7 @@ export function useAttachFile(profile: string): UseAttachFileResult {
         setPending(false)
       }
     },
-    [profile],
+    [thread],
   )
 
   return { attach, pending, error, clearError }
